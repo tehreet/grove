@@ -7,6 +7,7 @@
 mod agents;
 mod commands;
 mod config;
+mod coordinator;
 mod db;
 mod errors;
 mod json;
@@ -180,7 +181,7 @@ enum Commands {
     Doctor(DoctorArgs),
 
     /// Persistent coordinator event loop
-    Coordinator(PassthroughArgs),
+    Coordinator(CoordinatorArgs),
 
     /// Agent supervisor daemon
     Supervisor(PassthroughArgs),
@@ -924,6 +925,40 @@ struct ErrorsArgs {
 }
 
 #[derive(Args)]
+struct CoordinatorArgs {
+    #[command(subcommand)]
+    command: CoordinatorSubcommand,
+}
+
+#[derive(Subcommand)]
+enum CoordinatorSubcommand {
+    /// Start the coordinator event loop
+    Start(CoordinatorStartArgs),
+    /// Stop the coordinator
+    Stop(CoordinatorStopArgs),
+    /// Show coordinator status
+    Status(CoordinatorStatusArgs),
+    /// Send a message to the coordinator's mailbox
+    Send(CoordinatorSendArgs),
+}
+
+#[derive(Args)]
+struct CoordinatorStartArgs {
+    /// Start in background (do not attach to tmux session)
+    #[arg(long)]
+    no_attach: bool,
+    /// Coordination profile (delivery | co-creation)
+    #[arg(long)]
+    profile: Option<String>,
+    /// Run the event loop in the foreground (used internally by tmux)
+    #[arg(long, hide = true)]
+    foreground: bool,
+    /// Output as JSON
+    #[arg(long)]
+    json: bool,
+}
+
+#[derive(Args)]
 struct InspectArgs {
     /// Agent name to inspect
     agent_name: String,
@@ -933,9 +968,39 @@ struct InspectArgs {
 }
 
 #[derive(Args)]
+struct CoordinatorStopArgs {
+    /// Output as JSON
+    #[arg(long)]
+    json: bool,
+}
+
+#[derive(Args)]
 struct TraceArgs {
     /// Agent name or task ID to trace
     subject: String,
+    /// Output as JSON
+    #[arg(long)]
+    json: bool,
+}
+
+#[derive(Args)]
+struct CoordinatorStatusArgs {
+    /// Output as JSON
+    #[arg(long)]
+    json: bool,
+}
+
+#[derive(Args)]
+struct CoordinatorSendArgs {
+    /// Message subject
+    #[arg(long)]
+    subject: String,
+    /// Message body
+    #[arg(long)]
+    body: String,
+    /// Sender agent name
+    #[arg(long, default_value = "operator")]
+    from: String,
     /// Output as JSON
     #[arg(long)]
     json: bool,
@@ -1103,7 +1168,28 @@ fn run_command(
             let cmd_json = args.json || json;
             commands::doctor::execute(cmd_json, args.verbose, args.category)
         }
-        Commands::Coordinator(_) => not_yet_implemented("coordinator", json),
+        Commands::Coordinator(args) => match args.command {
+            CoordinatorSubcommand::Start(a) => commands::coordinator::execute_start(
+                a.no_attach,
+                a.profile.as_deref(),
+                a.foreground,
+                a.json || json,
+                project,
+            ),
+            CoordinatorSubcommand::Stop(a) => {
+                commands::coordinator::execute_stop(a.json || json, project)
+            }
+            CoordinatorSubcommand::Status(a) => {
+                commands::coordinator::execute_status(a.json || json, project)
+            }
+            CoordinatorSubcommand::Send(a) => commands::coordinator::execute_send(
+                &a.subject,
+                &a.body,
+                &a.from,
+                a.json || json,
+                project,
+            ),
+        },
         Commands::Supervisor(_) => not_yet_implemented("supervisor", json),
         Commands::Hooks(args) => match args.command {
             HooksSubcommand::Install(a) => commands::hooks::execute_install(

@@ -1,5 +1,6 @@
 pub mod agents;
 pub mod clean;
+pub mod coordinator;
 pub mod costs;
 pub mod doctor;
 pub mod errors;
