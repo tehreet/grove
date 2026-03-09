@@ -22,6 +22,7 @@ use crate::logging::{muted, print_hint, print_success};
 
 #[allow(clippy::too_many_arguments)]
 pub fn execute(
+    _force: bool,
     all: bool,
     mail: bool,
     sessions: bool,
@@ -35,7 +36,8 @@ pub fn execute(
     project_override: Option<&Path>,
 ) -> Result<(), String> {
     let do_worktrees = all || worktrees;
-    let do_branches = all || branches;
+    // Always delete branches when removing worktrees (they accumulate otherwise)
+    let do_branches = all || branches || worktrees;
     let do_mail = all || mail;
     let do_sessions = all || sessions;
     let do_metrics = all || metrics;
@@ -431,7 +433,7 @@ mod tests {
     #[test]
     fn test_execute_no_flags_returns_error() {
         let result = execute(
-            false, false, false, false, false, false, false, false, false, false,
+            false, false, false, false, false, false, false, false, false, false, false,
             Some(Path::new("/tmp")),
         );
         assert!(result.is_err());
@@ -442,7 +444,7 @@ mod tests {
     fn test_execute_all_no_overstory_dir() {
         // Should not panic when .overstory doesn't exist
         let result = execute(
-            true, false, false, false, false, false, false, false, false, false,
+            false, true, false, false, false, false, false, false, false, false, false,
             Some(Path::new("/tmp")),
         );
         // May succeed or fail — just must not panic

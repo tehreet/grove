@@ -438,6 +438,26 @@ pub fn load_config(
     override_path: Option<&Path>,
 ) -> Result<OverstoryConfig, GroveError> {
     let resolved_root = resolve_project_root(project_root, override_path)?;
+
+    // When an explicit --project path is given, validate it looks like a project root.
+    if let Some(p) = override_path {
+        if !p.exists() {
+            return Err(ConfigError::new(format!(
+                "--project path does not exist: {}",
+                p.display()
+            ))
+            .into());
+        }
+        if !p.join(OVERSTORY_DIR).exists() {
+            return Err(ConfigError::new(format!(
+                "No .overstory/ directory found at --project path: {}. \
+                 Run 'grove init' to initialize this project.",
+                p.display()
+            ))
+            .into());
+        }
+    }
+
     let config_path = resolved_root
         .join(OVERSTORY_DIR)
         .join(CONFIG_FILENAME);

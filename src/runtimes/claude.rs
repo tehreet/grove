@@ -46,10 +46,12 @@ impl AgentRuntime for ClaudeRuntime {
         fs::create_dir_all(&claude_dir)
             .map_err(|e| format!("Failed to create .claude dir: {e}"))?;
 
-        // Write overlay content to .claude/CLAUDE.md
-        let overlay_path = claude_dir.join("CLAUDE.md");
-        fs::write(&overlay_path, overlay_content)
-            .map_err(|e| format!("Failed to write CLAUDE.md: {e}"))?;
+        // Write overlay content to .claude/CLAUDE.md (skip if empty — overlay already written)
+        if !overlay_content.is_empty() {
+            let overlay_path = claude_dir.join("CLAUDE.md");
+            fs::write(&overlay_path, overlay_content)
+                .map_err(|e| format!("Failed to write CLAUDE.md: {e}"))?;
+        }
 
         // Build settings.local.json with hooks
         let agent_name = &hooks.agent_name;
@@ -176,6 +178,26 @@ mod tests {
 
         let settings = dir.path().join(".claude/settings.local.json");
         assert!(settings.exists());
+    }
+
+    #[test]
+    fn test_claude_deploy_config_empty_overlay_preserves_existing() {
+        let dir = TempDir::new().unwrap();
+        let claude_dir = dir.path().join(".claude");
+        fs::create_dir_all(&claude_dir).unwrap();
+        // Write initial content that should be preserved
+        fs::write(claude_dir.join("CLAUDE.md"), "# existing content").unwrap();
+
+        let hooks = HooksDef {
+            agent_name: "test-agent".to_string(),
+            capability: "builder".to_string(),
+            worktree_path: dir.path().to_string_lossy().to_string(),
+            quality_gates: None,
+        };
+        ClaudeRuntime.deploy_config(dir.path(), "", &hooks).unwrap();
+
+        let content = std::fs::read_to_string(claude_dir.join("CLAUDE.md")).unwrap();
+        assert_eq!(content, "# existing content", "Empty overlay should not overwrite existing CLAUDE.md");
     }
 
     #[test]

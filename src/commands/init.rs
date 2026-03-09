@@ -633,8 +633,8 @@ pub fn execute(opts: InitOptions<'_>) -> Result<(), String> {
         println!("{}", json_output("init", &output));
     } else {
         print_success("Initialized", None);
-        print_hint("Next: run `ov hooks install` to enable Claude Code hooks.");
-        print_hint("Then: run `ov status` to see the current state.");
+        print_hint("Next: run `grove hooks install` to enable Claude Code hooks.");
+        print_hint("Then: run `grove status` to see the current state.");
     }
 
     Ok(())

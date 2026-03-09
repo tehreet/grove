@@ -422,6 +422,9 @@ struct StatusArgs {
 
 #[derive(Args)]
 struct CleanArgs {
+    /// Skip any confirmation prompt (for scripted use)
+    #[arg(short, long)]
+    force: bool,
     /// Wipe everything (nuclear option)
     #[arg(long)]
     all: bool,
@@ -545,7 +548,7 @@ struct MailSendArgs {
     #[arg(long)]
     thread: Option<String>,
     /// Sender agent name (defaults to "operator")
-    #[arg(long, default_value = "operator")]
+    #[arg(long, alias = "from", default_value = "operator")]
     agent: String,
     /// Structured JSON payload
     #[arg(long)]
@@ -560,7 +563,7 @@ struct MailReplyArgs {
     #[arg(long)]
     body: String,
     /// Sender agent name (defaults to "operator")
-    #[arg(long, default_value = "operator")]
+    #[arg(long, alias = "from", default_value = "operator")]
     agent: String,
 }
 
@@ -873,6 +876,7 @@ fn run_command(
         Commands::Dashboard(_) => not_yet_implemented("dashboard", json),
         Commands::Inspect(_) => not_yet_implemented("inspect", json),
         Commands::Clean(args) => commands::clean::execute(
+            args.force,
             args.all,
             args.mail,
             args.sessions,

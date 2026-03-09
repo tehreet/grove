@@ -186,9 +186,6 @@ pub fn execute(opts: SlingOptions<'_>) -> Result<(), String> {
 
     let capability = opts.capability;
 
-    // Validate input options
-    validate_hierarchy(opts.parent, capability, opts.force_hierarchy)?;
-
     // Resolve spec path (must exist if provided)
     let spec_path: Option<PathBuf> = if let Some(sp) = opts.spec {
         let abs = fs::canonicalize(sp).unwrap_or_else(|_| sp.to_path_buf());
@@ -225,7 +222,8 @@ pub fn execute(opts: SlingOptions<'_>) -> Result<(), String> {
         ));
     }
 
-    // Load manifest + validate capability
+    // Load manifest + validate capability BEFORE hierarchy check so unknown
+    // capability gives a clear error instead of a confusing hierarchy error.
     let manifest =
         load_manifest_from_project(&root, &config.agents.manifest_path)
             .map_err(|e| e.to_string())?;
@@ -240,6 +238,9 @@ pub fn execute(opts: SlingOptions<'_>) -> Result<(), String> {
                 .join(", ")
         )
     })?;
+
+    // Validate hierarchy after capability so callers get the right error first
+    validate_hierarchy(opts.parent, capability, opts.force_hierarchy)?;
 
     // Resolve/create run_id
     let sessions_db = overstory_dir.join("sessions.db");
@@ -395,6 +396,17 @@ pub fn execute(opts: SlingOptions<'_>) -> Result<(), String> {
 
     let branch_name = format!("overstory/{agent_name}/{task_id}");
     let worktree_path = worktree_base_dir.join(&agent_name);
+
+    // Check if worktree directory already exists on disk (catches completed sessions
+    // where the DB record no longer shows as active but the directory remains).
+    if worktree_path.exists() {
+        return Err(format!(
+            "Worktree directory already exists: {}. \
+             Agent name \"{}\" may already be in use — choose a different name with --name.",
+            worktree_path.display(),
+            agent_name,
+        ));
+    }
 
     create_worktree(&root, &base_branch, &branch_name, &worktree_path)
         .map_err(|e| format!("Failed to create worktree: {e}"))?;
