@@ -201,10 +201,10 @@ enum Commands {
     Nudge(NudgeArgs),
 
     /// Group management
-    Group(PassthroughArgs),
+    Group(GroupArgs),
 
     /// Worktree management
-    Worktree(PassthroughArgs),
+    Worktree(WorktreeArgs),
 
     /// Session lifecycle hooks (session-start / session-end)
     Log(LogArgs),
@@ -230,8 +230,8 @@ enum Commands {
     /// Replay agent sessions
     Replay(PassthroughArgs),
 
-    /// Run a task end-to-end
-    Run(PassthroughArgs),
+    /// Manage runs (coordinator session groupings)
+    Run(RunArgs),
 
     /// Show token costs and spending
     Costs(CostsArgs),
@@ -283,6 +283,9 @@ struct AgentsArgs {
     /// Compact single-line output
     #[arg(long)]
     compact: bool,
+    /// Include completed and zombie agents (default: active only)
+    #[arg(long)]
+    all: bool,
     /// Watch mode (refresh every N seconds)
     #[arg(long)]
     watch: Option<u64>,
@@ -618,6 +621,157 @@ struct NudgeArgs {
 }
 
 #[derive(Args)]
+struct GroupArgs {
+    #[command(subcommand)]
+    command: GroupSubcommand,
+}
+
+#[derive(Subcommand)]
+enum GroupSubcommand {
+    /// Create a new task group
+    Create(GroupCreateArgs),
+    /// Show progress for one or all groups
+    Status(GroupStatusArgs),
+    /// Add issues to a group
+    Add(GroupAddArgs),
+    /// Remove issues from a group
+    Remove(GroupRemoveArgs),
+    /// List all groups
+    List(GroupListArgs),
+}
+
+#[derive(Args)]
+struct GroupCreateArgs {
+    /// Group name
+    name: String,
+    /// Issue IDs to include
+    ids: Vec<String>,
+    /// Output as JSON
+    #[arg(long)]
+    json: bool,
+}
+
+#[derive(Args)]
+struct GroupStatusArgs {
+    /// Group ID (optional, shows all if omitted)
+    group_id: Option<String>,
+    /// Output as JSON
+    #[arg(long)]
+    json: bool,
+}
+
+#[derive(Args)]
+struct GroupAddArgs {
+    /// Group ID
+    group_id: String,
+    /// Issue IDs to add
+    ids: Vec<String>,
+    /// Output as JSON
+    #[arg(long)]
+    json: bool,
+}
+
+#[derive(Args)]
+struct GroupRemoveArgs {
+    /// Group ID
+    group_id: String,
+    /// Issue IDs to remove
+    ids: Vec<String>,
+    /// Output as JSON
+    #[arg(long)]
+    json: bool,
+}
+
+#[derive(Args)]
+struct GroupListArgs {
+    /// Output as JSON
+    #[arg(long)]
+    json: bool,
+}
+
+#[derive(Args)]
+struct WorktreeArgs {
+    #[command(subcommand)]
+    command: WorktreeSubcommand,
+}
+
+#[derive(Subcommand)]
+enum WorktreeSubcommand {
+    /// List worktrees with agent status
+    List(WorktreeListArgs),
+    /// Remove completed worktrees
+    Clean(WorktreeCleanArgs),
+}
+
+#[derive(Args)]
+struct WorktreeListArgs {
+    /// Output as JSON
+    #[arg(long)]
+    json: bool,
+}
+
+#[derive(Args)]
+struct WorktreeCleanArgs {
+    /// Only finished agents (default)
+    #[arg(long)]
+    completed: bool,
+    /// Force remove all worktrees
+    #[arg(long)]
+    all: bool,
+    /// Delete even if branches are unmerged
+    #[arg(long)]
+    force: bool,
+    /// Output as JSON
+    #[arg(long)]
+    json: bool,
+}
+
+#[derive(Args)]
+struct RunArgs {
+    #[command(subcommand)]
+    command: Option<RunSubcommand>,
+    /// Output as JSON
+    #[arg(long)]
+    json: bool,
+}
+
+#[derive(Subcommand)]
+enum RunSubcommand {
+    /// List recent runs
+    List(RunListArgs),
+    /// Show run details (agents, duration)
+    Show(RunShowArgs),
+    /// Mark current run as completed
+    Complete(RunCompleteArgs),
+}
+
+#[derive(Args)]
+struct RunListArgs {
+    /// Number of recent runs to show
+    #[arg(long, default_value = "10")]
+    last: u32,
+    /// Output as JSON
+    #[arg(long)]
+    json: bool,
+}
+
+#[derive(Args)]
+struct RunShowArgs {
+    /// Run ID
+    id: String,
+    /// Output as JSON
+    #[arg(long)]
+    json: bool,
+}
+
+#[derive(Args)]
+struct RunCompleteArgs {
+    /// Output as JSON
+    #[arg(long)]
+    json: bool,
+}
+
+#[derive(Args)]
 struct SpecArgs {
     #[command(subcommand)]
     command: SpecSubcommand,
@@ -814,7 +968,12 @@ fn run_command(
     project: Option<&std::path::Path>,
 ) -> Result<(), String> {
     match cmd {
-        Commands::Agents(_) => not_yet_implemented("agents", json),
+        Commands::Agents(args) => commands::agents::execute_discover(
+            args.capability,
+            args.all,
+            args.json || json,
+            project,
+        ),
         Commands::Init(args) => commands::init::execute(commands::init::InitOptions {
             name: args.name,
             yes: args.yes,
@@ -934,8 +1093,45 @@ fn run_command(
             args.json || json,
             project,
         ),
-        Commands::Group(_) => not_yet_implemented("group", json),
-        Commands::Worktree(_) => not_yet_implemented("worktree", json),
+        Commands::Group(args) => match args.command {
+            GroupSubcommand::Create(a) => commands::group::execute_create(
+                &a.name,
+                a.ids,
+                a.json || json,
+                project,
+            ),
+            GroupSubcommand::Status(a) => commands::group::execute_status(
+                a.group_id,
+                a.json || json,
+                project,
+            ),
+            GroupSubcommand::Add(a) => commands::group::execute_add(
+                &a.group_id,
+                a.ids,
+                a.json || json,
+                project,
+            ),
+            GroupSubcommand::Remove(a) => commands::group::execute_remove(
+                &a.group_id,
+                a.ids,
+                a.json || json,
+                project,
+            ),
+            GroupSubcommand::List(a) => commands::group::execute_list(a.json || json, project),
+        },
+        Commands::Worktree(args) => match args.command {
+            WorktreeSubcommand::List(a) => commands::worktree_cmd::execute_list(a.json || json, project),
+            WorktreeSubcommand::Clean(a) => {
+                let all = a.all;
+                commands::worktree_cmd::execute_clean(
+                    all,
+                    a.force,
+                    a.completed || !all,
+                    a.json || json,
+                    project,
+                )
+            }
+        },
         Commands::Log(args) => match args.command {
             LogSubcommand::SessionStart(a) => commands::log::execute_session_start(
                 &a.agent,
@@ -956,7 +1152,15 @@ fn run_command(
         Commands::Feed(_) => not_yet_implemented("feed", json),
         Commands::Errors(_) => not_yet_implemented("errors", json),
         Commands::Replay(_) => not_yet_implemented("replay", json),
-        Commands::Run(_) => not_yet_implemented("run", json),
+        Commands::Run(args) => {
+            let cmd_json = args.json || json;
+            match args.command {
+                None => commands::run::execute_current(cmd_json, project),
+                Some(RunSubcommand::List(a)) => commands::run::execute_list(a.last, a.json || cmd_json, project),
+                Some(RunSubcommand::Show(a)) => commands::run::execute_show(&a.id, a.json || cmd_json, project),
+                Some(RunSubcommand::Complete(a)) => commands::run::execute_complete(a.json || cmd_json, project),
+            }
+        }
         Commands::Costs(args) => commands::costs::execute(
             args.agent,
             args.run,

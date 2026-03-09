@@ -1,13 +1,17 @@
+pub mod agents;
 pub mod clean;
 pub mod costs;
 pub mod doctor;
+pub mod group;
 pub mod hooks;
 pub mod init;
 pub mod log;
 pub mod mail;
 pub mod merge;
 pub mod nudge;
+pub mod run;
 pub mod sling;
 pub mod spec;
 pub mod status;
 pub mod stop;
+pub mod worktree_cmd;
