@@ -4,6 +4,7 @@
 //! subcommands. Phase 0: each command prints "not yet implemented" until the
 //! corresponding command module is wired up.
 
+mod agents;
 mod commands;
 mod config;
 mod db;
@@ -11,7 +12,7 @@ mod errors;
 mod json;
 mod logging;
 mod merge;
-mod process;
+mod runtimes;
 mod types;
 mod worktree;
 
