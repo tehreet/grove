@@ -48,8 +48,8 @@ watchdog:
   nudgeIntervalMs: 60000
 coordinator:
   exitTriggers:
-    allAgentsDone: false
-    taskTrackerEmpty: false
+    allAgentsDone: true
+    taskTrackerEmpty: true
     onShutdownSignal: false
 models:
 logging:
