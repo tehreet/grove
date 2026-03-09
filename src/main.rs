@@ -4,6 +4,7 @@
 //! subcommands. Phase 0: each command prints "not yet implemented" until the
 //! corresponding command module is wired up.
 
+mod commands;
 mod config;
 mod db;
 mod errors;
@@ -170,7 +171,7 @@ enum Commands {
     Clean(CleanArgs),
 
     /// Check system health
-    Doctor(PassthroughArgs),
+    Doctor(DoctorArgs),
 
     /// Persistent coordinator event loop
     Coordinator(PassthroughArgs),
@@ -185,7 +186,7 @@ enum Commands {
     Monitor(PassthroughArgs),
 
     /// Mail system (send/check/list/read/reply)
-    Mail(PassthroughArgs),
+    Mail(MailArgs),
 
     /// Merge agent branches into canonical
     Merge(MergeArgs),
@@ -227,7 +228,7 @@ enum Commands {
     Run(PassthroughArgs),
 
     /// Show token costs and spending
-    Costs(PassthroughArgs),
+    Costs(CostsArgs),
 
     /// Show session metrics
     Metrics(PassthroughArgs),
@@ -466,6 +467,101 @@ struct MergeArgs {
     json: bool,
 }
 
+#[derive(Args)]
+struct DoctorArgs {
+    /// Output as JSON
+    #[arg(long)]
+    json: bool,
+    /// Show all checks including passing (default: only problems)
+    #[arg(long)]
+    verbose: bool,
+    /// Run only one category of checks
+    #[arg(long)]
+    category: Option<String>,
+}
+
+#[derive(Args)]
+struct MailArgs {
+    #[command(subcommand)]
+    command: MailCommands,
+}
+
+#[derive(Subcommand)]
+enum MailCommands {
+    /// List messages
+    List(MailListArgs),
+    /// Check for new messages
+    Check(MailCheckArgs),
+    /// Read a message
+    Read(MailReadArgs),
+    /// Send a message (Phase 2)
+    Send(PassthroughArgs),
+    /// Reply to a message (Phase 2)
+    Reply(PassthroughArgs),
+    /// Purge messages (Phase 2)
+    Purge(PassthroughArgs),
+}
+
+#[derive(Args)]
+struct MailListArgs {
+    /// Filter by recipient
+    #[arg(long)]
+    to: Option<String>,
+    /// Filter by sender
+    #[arg(long)]
+    from: Option<String>,
+    /// Filter by message type
+    #[arg(long, name = "type")]
+    msg_type: Option<String>,
+    /// Show only unread messages
+    #[arg(long)]
+    unread: bool,
+    /// Maximum number of messages to show
+    #[arg(long)]
+    limit: Option<usize>,
+    /// Output as JSON
+    #[arg(long)]
+    json: bool,
+}
+
+#[derive(Args)]
+struct MailCheckArgs {
+    /// Agent to check mail for
+    #[arg(long)]
+    agent: Option<String>,
+    /// Inject format for Claude Code hooks
+    #[arg(long)]
+    inject: bool,
+    /// Output as JSON
+    #[arg(long)]
+    json: bool,
+}
+
+#[derive(Args)]
+struct MailReadArgs {
+    /// Message ID to read
+    id: String,
+    /// Output as JSON
+    #[arg(long)]
+    json: bool,
+}
+
+#[derive(Args)]
+struct CostsArgs {
+    /// Filter by agent name
+    #[arg(long)]
+    agent: Option<String>,
+    /// Filter by run ID
+    #[arg(long)]
+    run: Option<String>,
+    /// Show live token snapshots
+    #[arg(long)]
+    live: bool,
+    /// Output as JSON
+    #[arg(long)]
+    json: bool,
+}
+
 // ---------------------------------------------------------------------------
 // Entry point
 // ---------------------------------------------------------------------------
@@ -545,7 +641,10 @@ fn run_command(cmd: Commands, json: bool, _verbose: bool) -> Result<(), String> 
         Commands::Dashboard(_) => not_yet_implemented("dashboard", json),
         Commands::Inspect(_) => not_yet_implemented("inspect", json),
         Commands::Clean(_) => not_yet_implemented("clean", json),
-        Commands::Doctor(_) => not_yet_implemented("doctor", json),
+        Commands::Doctor(args) => {
+            let cmd_json = args.json || json;
+            commands::doctor::execute(cmd_json, args.verbose, args.category)
+        }
         Commands::Coordinator(_) => not_yet_implemented("coordinator", json),
         Commands::Supervisor(_) => not_yet_implemented("supervisor", json),
         Commands::Hooks(_) => not_yet_implemented("hooks", json),
