@@ -1,5 +1,7 @@
 version: '1'
 domains:
+  - rust
+  - architecture
   - grove
   - architecture
 governance:

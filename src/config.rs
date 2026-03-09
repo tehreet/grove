@@ -1,3 +1,5 @@
+#![allow(dead_code)]
+
 use std::path::{Path, PathBuf};
 use std::process::Command;
 
@@ -5,8 +7,7 @@ use serde_yaml::Value;
 
 use crate::errors::{ConfigError, GroveError, ValidationError};
 use crate::types::{
-    default_quality_gates, default_verification_config, OverstoryConfig, ProviderConfig,
-    TaskTrackerBackend,
+    default_verification_config, OverstoryConfig, TaskTrackerBackend,
 };
 
 const CONFIG_FILENAME: &str = "config.yaml";
@@ -250,15 +251,15 @@ fn validate_config(config: &OverstoryConfig) -> Result<(), ValidationError> {
     // providers validation
     let valid_provider_types = ["native", "gateway"];
     for (name, provider) in &config.providers {
-        if !valid_provider_types.contains(&provider.r#type.as_str()) {
+        if !valid_provider_types.contains(&provider.provider_type.as_str()) {
             return Err(ValidationError::new(format!(
                 "providers.{name}.type must be one of: {}",
                 valid_provider_types.join(", ")
             ))
             .with_field(format!("providers.{name}.type"))
-            .with_value(&provider.r#type));
+            .with_value(&provider.provider_type));
         }
-        if provider.r#type == "gateway" {
+        if provider.provider_type == "gateway" {
             if provider.base_url.as_deref().unwrap_or("").is_empty() {
                 return Err(ValidationError::new(format!(
                     "providers.{name}.baseUrl is required for gateway providers"
@@ -410,7 +411,7 @@ fn read_yaml_file(path: &Path) -> Result<Option<Value>, GroveError> {
     if !path.exists() {
         return Ok(None);
     }
-    let text = std::fs::read_to_string(path).map_err(|e| {
+    let text = std::fs::read_to_string(path).map_err(|_e| {
         ConfigError::new(format!("Failed to read config file: {}", path.display()))
             .with_path(path.display().to_string())
     })?;

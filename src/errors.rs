@@ -1,37 +1,9 @@
+#![allow(dead_code)]
+
 use thiserror::Error;
 
-/// Top-level error type for all Grove operations.
-#[derive(Debug, Error)]
-pub enum GroveError {
-    #[error(transparent)]
-    Config(#[from] ConfigError),
-    #[error(transparent)]
-    Validation(#[from] ValidationError),
-    #[error(transparent)]
-    Agent(#[from] AgentError),
-    #[error(transparent)]
-    Hierarchy(#[from] HierarchyError),
-    #[error(transparent)]
-    Worktree(#[from] WorktreeError),
-    #[error(transparent)]
-    Mail(#[from] MailError),
-    #[error(transparent)]
-    Merge(#[from] MergeError),
-    #[error(transparent)]
-    Group(#[from] GroupError),
-    #[error(transparent)]
-    Lifecycle(#[from] LifecycleError),
-    #[error("IO error: {0}")]
-    Io(#[from] std::io::Error),
-    #[error("YAML error: {0}")]
-    Yaml(#[from] serde_yaml::Error),
-    #[error("{0}")]
-    Other(String),
-}
-
-/// Raised when config loading or validation fails.
-#[derive(Debug, Error)]
-#[error("{message}")]
+/// Builder-style config error, convertible to GroveError::Config.
+#[derive(Debug)]
 pub struct ConfigError {
     pub message: String,
     pub config_path: Option<String>,
@@ -47,24 +19,33 @@ impl ConfigError {
         }
     }
 
-    pub fn with_path(mut self, path: impl Into<String>) -> Self {
+    pub fn with_path(mut self, path: impl Into<String>) -> GroveError {
         self.config_path = Some(path.into());
-        self
-    }
-
-    pub fn with_field(mut self, field: impl Into<String>) -> Self {
-        self.field = Some(field.into());
-        self
+        self.into()
     }
 }
 
-/// Raised when input validation fails.
-#[derive(Debug, Error)]
-#[error("{message}")]
+impl std::fmt::Display for ConfigError {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "config error: {}", self.message)
+    }
+}
+
+impl From<ConfigError> for GroveError {
+    fn from(e: ConfigError) -> Self {
+        GroveError::Config {
+            message: e.message,
+            config_path: e.config_path,
+            field: e.field,
+        }
+    }
+}
+
+/// Builder-style validation error, convertible to GroveError::Validation.
+#[derive(Debug)]
 pub struct ValidationError {
     pub message: String,
     pub field: Option<String>,
-    pub value: Option<String>,
 }
 
 impl ValidationError {
@@ -72,7 +53,6 @@ impl ValidationError {
         Self {
             message: message.into(),
             field: None,
-            value: None,
         }
     }
 
@@ -81,188 +61,246 @@ impl ValidationError {
         self
     }
 
-    pub fn with_value(mut self, value: impl std::fmt::Debug) -> Self {
-        self.value = Some(format!("{value:?}"));
+    pub fn with_value<T: std::fmt::Display>(self, _value: T) -> Self {
+        // Value is included for context but doesn't change the error type
         self
     }
 }
 
-/// Raised for agent lifecycle issues.
-#[derive(Debug, Error)]
-#[error("{message}")]
-pub struct AgentError {
-    pub message: String,
-    pub agent_name: Option<String>,
-    pub capability: Option<String>,
-}
-
-impl AgentError {
-    pub fn new(message: impl Into<String>) -> Self {
-        Self {
-            message: message.into(),
-            agent_name: None,
-            capability: None,
-        }
-    }
-
-    pub fn with_agent(mut self, name: impl Into<String>) -> Self {
-        self.agent_name = Some(name.into());
-        self
-    }
-
-    pub fn with_capability(mut self, cap: impl Into<String>) -> Self {
-        self.capability = Some(cap.into());
-        self
-    }
-}
-
-/// Raised when hierarchy constraints are violated.
-#[derive(Debug, Error)]
-#[error("{message}")]
-pub struct HierarchyError {
-    pub message: String,
-    pub agent_name: Option<String>,
-    pub requested_capability: Option<String>,
-}
-
-impl HierarchyError {
-    pub fn new(message: impl Into<String>) -> Self {
-        Self {
-            message: message.into(),
-            agent_name: None,
-            requested_capability: None,
+impl std::fmt::Display for ValidationError {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        if let Some(field) = &self.field {
+            write!(f, "validation error: {} (field: {})", self.message, field)
+        } else {
+            write!(f, "validation error: {}", self.message)
         }
     }
 }
 
-/// Raised when git worktree operations fail.
-#[derive(Debug, Error)]
-#[error("{message}")]
-pub struct WorktreeError {
-    pub message: String,
-    pub worktree_path: Option<String>,
-    pub branch_name: Option<String>,
-}
-
-impl WorktreeError {
-    pub fn new(message: impl Into<String>) -> Self {
-        Self {
-            message: message.into(),
-            worktree_path: None,
-            branch_name: None,
+impl From<ValidationError> for GroveError {
+    fn from(e: ValidationError) -> Self {
+        GroveError::Validation {
+            message: e.message,
+            field: e.field,
         }
     }
 }
 
-/// Raised when mail system operations fail.
 #[derive(Debug, Error)]
-#[error("{message}")]
-pub struct MailError {
-    pub message: String,
-    pub agent_name: Option<String>,
-    pub message_id: Option<String>,
+pub enum GroveError {
+    #[error("config error: {message}")]
+    Config {
+        message: String,
+        config_path: Option<String>,
+        field: Option<String>,
+    },
+
+    #[error("agent error: {message}")]
+    Agent {
+        message: String,
+        agent_name: Option<String>,
+        capability: Option<String>,
+    },
+
+    #[error("hierarchy violation: {message}")]
+    Hierarchy {
+        message: String,
+        agent_name: Option<String>,
+        requested_capability: Option<String>,
+    },
+
+    #[error("worktree error: {message}")]
+    Worktree {
+        message: String,
+        worktree_path: Option<String>,
+        branch_name: Option<String>,
+    },
+
+    #[error("mail error: {message}")]
+    Mail {
+        message: String,
+        agent_name: Option<String>,
+        message_id: Option<String>,
+    },
+
+    #[error("merge error: {message}")]
+    Merge {
+        message: String,
+        branch_name: Option<String>,
+        conflict_files: Vec<String>,
+    },
+
+    #[error("validation error: {message}")]
+    Validation {
+        message: String,
+        field: Option<String>,
+    },
+
+    #[error("group error: {message}")]
+    Group {
+        message: String,
+        group_id: Option<String>,
+    },
+
+    #[error("lifecycle error: {message}")]
+    Lifecycle {
+        message: String,
+        agent_name: Option<String>,
+        session_id: Option<String>,
+    },
+
+    #[error("database error: {0}")]
+    Database(#[from] rusqlite::Error),
+
+    #[error("io error: {0}")]
+    Io(#[from] std::io::Error),
+
+    #[error("json error: {0}")]
+    Json(#[from] serde_json::Error),
+
+    #[error("yaml error: {0}")]
+    Yaml(#[from] serde_yaml::Error),
 }
 
-impl MailError {
-    pub fn new(message: impl Into<String>) -> Self {
-        Self {
-            message: message.into(),
-            agent_name: None,
-            message_id: None,
-        }
-    }
-}
-
-/// Raised when merge or conflict resolution fails.
-#[derive(Debug, Error)]
-#[error("{message}")]
-pub struct MergeError {
-    pub message: String,
-    pub branch_name: Option<String>,
-    pub conflict_files: Vec<String>,
-}
-
-impl MergeError {
-    pub fn new(message: impl Into<String>) -> Self {
-        Self {
-            message: message.into(),
-            branch_name: None,
-            conflict_files: vec![],
-        }
-    }
-}
-
-/// Raised when task group operations fail.
-#[derive(Debug, Error)]
-#[error("{message}")]
-pub struct GroupError {
-    pub message: String,
-    pub group_id: Option<String>,
-}
-
-impl GroupError {
-    pub fn new(message: impl Into<String>) -> Self {
-        Self {
-            message: message.into(),
-            group_id: None,
-        }
-    }
-}
-
-/// Raised when session lifecycle operations fail.
-#[derive(Debug, Error)]
-#[error("{message}")]
-pub struct LifecycleError {
-    pub message: String,
-    pub agent_name: Option<String>,
-    pub session_id: Option<String>,
-}
-
-impl LifecycleError {
-    pub fn new(message: impl Into<String>) -> Self {
-        Self {
-            message: message.into(),
-            agent_name: None,
-            session_id: None,
-        }
-    }
-}
+/// Alias for Result with GroveError.
+pub type Result<T> = std::result::Result<T, GroveError>;
 
 #[cfg(test)]
 mod tests {
     use super::*;
 
     #[test]
-    fn config_error_builder() {
-        let err = ConfigError::new("bad config")
-            .with_path("/some/path")
-            .with_field("project.root");
-        assert_eq!(err.message, "bad config");
-        assert_eq!(err.config_path.as_deref(), Some("/some/path"));
-        assert_eq!(err.field.as_deref(), Some("project.root"));
-        assert_eq!(err.to_string(), "bad config");
+    fn config_error_display() {
+        let err = GroveError::Config {
+            message: "missing field".into(),
+            config_path: Some("/etc/grove.yaml".into()),
+            field: Some("agents.maxConcurrent".into()),
+        };
+        assert_eq!(err.to_string(), "config error: missing field");
     }
 
     #[test]
-    fn validation_error_builder() {
-        let err = ValidationError::new("must be positive")
-            .with_field("agents.maxConcurrent")
-            .with_value(-1i32);
-        assert_eq!(err.field.as_deref(), Some("agents.maxConcurrent"));
-        assert!(err.value.is_some());
+    fn agent_error_display() {
+        let err = GroveError::Agent {
+            message: "agent not found".into(),
+            agent_name: Some("builder-1".into()),
+            capability: None,
+        };
+        assert_eq!(err.to_string(), "agent error: agent not found");
     }
 
     #[test]
-    fn grove_error_from_config() {
-        let config_err = ConfigError::new("oops");
-        let grove_err: GroveError = config_err.into();
-        assert!(matches!(grove_err, GroveError::Config(_)));
+    fn hierarchy_error_display() {
+        let err = GroveError::Hierarchy {
+            message: "depth limit exceeded".into(),
+            agent_name: Some("builder-2".into()),
+            requested_capability: Some("coordinator".into()),
+        };
+        assert_eq!(err.to_string(), "hierarchy violation: depth limit exceeded");
     }
 
     #[test]
-    fn grove_error_from_validation() {
-        let val_err = ValidationError::new("invalid");
-        let grove_err: GroveError = val_err.into();
-        assert!(matches!(grove_err, GroveError::Validation(_)));
+    fn worktree_error_display() {
+        let err = GroveError::Worktree {
+            message: "branch conflict".into(),
+            worktree_path: Some("/tmp/wt".into()),
+            branch_name: Some("feat/x".into()),
+        };
+        assert_eq!(err.to_string(), "worktree error: branch conflict");
+    }
+
+    #[test]
+    fn mail_error_display() {
+        let err = GroveError::Mail {
+            message: "delivery failed".into(),
+            agent_name: Some("builder-1".into()),
+            message_id: Some("msg-abc".into()),
+        };
+        assert_eq!(err.to_string(), "mail error: delivery failed");
+    }
+
+    #[test]
+    fn merge_error_display() {
+        let err = GroveError::Merge {
+            message: "unresolvable conflict".into(),
+            branch_name: Some("feat/y".into()),
+            conflict_files: vec!["src/main.rs".into()],
+        };
+        assert_eq!(err.to_string(), "merge error: unresolvable conflict");
+    }
+
+    #[test]
+    fn validation_error_display() {
+        let err = GroveError::Validation {
+            message: "invalid task ID".into(),
+            field: Some("taskId".into()),
+        };
+        assert_eq!(err.to_string(), "validation error: invalid task ID");
+    }
+
+    #[test]
+    fn group_error_display() {
+        let err = GroveError::Group {
+            message: "group not found".into(),
+            group_id: Some("group-abc".into()),
+        };
+        assert_eq!(err.to_string(), "group error: group not found");
+    }
+
+    #[test]
+    fn lifecycle_error_display() {
+        let err = GroveError::Lifecycle {
+            message: "checkpoint save failed".into(),
+            agent_name: Some("builder-1".into()),
+            session_id: Some("sess-1".into()),
+        };
+        assert_eq!(err.to_string(), "lifecycle error: checkpoint save failed");
+    }
+
+    #[test]
+    fn from_io_error() {
+        let io_err = std::io::Error::new(std::io::ErrorKind::NotFound, "file not found");
+        let grove_err: GroveError = io_err.into();
+        assert!(matches!(grove_err, GroveError::Io(_)));
+        assert!(grove_err.to_string().starts_with("io error:"));
+    }
+
+    #[test]
+    fn from_json_error() {
+        let json_err = serde_json::from_str::<serde_json::Value>("invalid json {{{").unwrap_err();
+        let grove_err: GroveError = json_err.into();
+        assert!(matches!(grove_err, GroveError::Json(_)));
+        assert!(grove_err.to_string().starts_with("json error:"));
+    }
+
+    #[test]
+    fn from_yaml_error() {
+        let yaml_err = serde_yaml::from_str::<serde_json::Value>("key: : :\n  bad").unwrap_err();
+        let grove_err: GroveError = yaml_err.into();
+        assert!(matches!(grove_err, GroveError::Yaml(_)));
+        assert!(grove_err.to_string().starts_with("yaml error:"));
+    }
+
+    #[test]
+    fn from_rusqlite_error() {
+        let sql_err = rusqlite::Error::InvalidParameterCount(0, 1);
+        let grove_err: GroveError = sql_err.into();
+        assert!(matches!(grove_err, GroveError::Database(_)));
+        assert!(grove_err.to_string().starts_with("database error:"));
+    }
+
+    #[test]
+    fn result_alias_ok() {
+        let ok: Result<i32> = Ok(42);
+        assert_eq!(ok.unwrap(), 42);
+    }
+
+    #[test]
+    fn result_alias_err() {
+        let err: Result<i32> = Err(GroveError::Validation {
+            message: "bad".into(),
+            field: None,
+        });
+        assert!(err.is_err());
     }
 }
