@@ -1,0 +1,17 @@
+[
+	{
+		"id": "group-93fb322b",
+		"name": "phase-0-foundation",
+		"memberIssueIds": [
+			"grove-c146",
+			"grove-c37a",
+			"grove-3e48",
+			"grove-8402",
+			"grove-71cd",
+			"grove-a60b"
+		],
+		"status": "completed",
+		"createdAt": "2026-03-09T18:52:59.647Z",
+		"completedAt": "2026-03-09T19:58:57.307Z"
+	}
+]
