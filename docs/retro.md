@@ -103,12 +103,60 @@ This doc tracks process failures we discovered while building grove with oversto
 
 ---
 
+### RETRO-008: Parallel builders cause merge conflicts in shared files (main.rs, mod.rs)
+
+**What happened:** Phase 4 had 3 parallel builders all adding commands. When merging their branches, `src/commands/mod.rs` and `src/main.rs` had conflicts. The mod.rs conflict was simple (both sides adding `pub mod` lines). The main.rs conflict was destructive — the "keep both sides" resolution jammed struct definitions together, removing closing braces. `InspectArgs` got `CoordinatorStopArgs` pasted into the middle of its definition. Three separate manual fixes were needed to get it compiling.
+
+**Root cause:** Three builders all modified main.rs (adding clap struct definitions and match arms) and mod.rs (adding module declarations). Overstory's merge system didn't handle this — the coordinator didn't merge at all (it was idle), so we had to merge manually. The auto-merge resolution ("keep both") doesn't understand Rust syntax and jammed code blocks together without proper delimiters.
+
+**Lesson for overstory/grove:**
+- `main.rs` is a merge bottleneck. When 3+ builders all add to it, conflicts are guaranteed.
+- The coordinator MUST merge branches sequentially, not leave them for manual resolution. Each merge resolves before the next starts.
+- Better: have a single "integration builder" whose job is solely to wire everything into main.rs after the implementation builders finish. This builder gets the exclusive file scope for main.rs and mod.rs.
+- Even better: structure the code so main.rs is generated or uses a registration pattern (like an inventory of commands) so parallel additions don't conflict.
+
+**Proposed fix for grove's coordinator:**
+- Detect when multiple builders have `main.rs` or `mod.rs` in their file scope
+- Merge them sequentially, not in parallel
+- Or: assign a dedicated wiring task after all builders complete
+
+---
+
+### RETRO-009: Coordinator doesn't merge builder branches before exiting
+
+**What happened:** Phase 4 coordinator sat idle while all 6 agents completed. When we stopped it, no branches had been merged to main. We had to manually merge 3 builder branches, encountering the conflicts described in RETRO-008.
+
+**Root cause:** The coordinator (LLM-based) received mail from leads saying "done" but didn't act on it — it was in a poll-sleep loop or had lost context. The exit triggers fired (allAgentsDone=true) before it could merge.
+
+**Lesson for overstory/grove:**
+- The coordinator must merge completed branches as part of its normal operation, not as a separate cleanup step
+- Exit triggers should not fire until all pending merges are complete
+- Grove's native coordinator should have a merge step in its event loop: "if agent completed and branch not merged, merge it"
+
+---
+
+### RETRO-010: MCP bridge tools (ov_dispatch, ov_pipeline) silently fail
+
+**What happened:** We tried to dispatch a bugfix task using the `ov_dispatch` MCP tool. It returned `{"dispatched":true}` but no agent was spawned. The dashboard was empty. We had to fall back to `ov sling` directly.
+
+**Root cause:** `ov_dispatch` was a custom wrapper in the claude-bridge MCP server that called `ov dispatch` — a command that doesn't exist in overstory. It was leftover experimental code that was never removed. The tool reported success because the spawn was detached and the error was swallowed.
+
+**Lesson for overstory/grove:**
+- MCP tools that wrap CLI commands must verify the command exists before wrapping it
+- "Fire and forget" (detached spawn with no exit code check) is dangerous — always verify the subprocess succeeded
+- We removed ov_dispatch and ov_pipeline from the MCP server entirely. Only ov_status (read-only) remains.
+- Going forward: use overstory's actual CLI commands directly (`ov sling`, `ov coordinator send`), not MCP wrappers
+
+---
+
 ## Pattern Summary
 
-Most failures fall into two categories:
+Most failures fall into three categories:
 
 1. **Verification gap:** Agents check "does it compile?" but not "does it work?" Quality gates need to include runtime behavior checks, not just static analysis.
 
 2. **Interface gap:** Parallel builders don't coordinate on shared files/APIs. When builder A writes to a file and builder B also writes to the same file, the last one wins and may clobber the first. Leads need to enforce interface contracts.
 
-Both of these are solvable in grove's coordinator by making verification commands and interface contracts first-class parts of the spec format.
+3. **Merge gap:** The coordinator doesn't merge branches reliably. Branches pile up, merge conflicts accumulate, and manual intervention is required. The coordinator must merge sequentially as agents complete, not batch at the end.
+
+All three are solvable in grove's coordinator by making verification commands, interface contracts, and sequential merge steps first-class parts of the orchestration loop.
