@@ -12,6 +12,7 @@ mod json;
 mod logging;
 mod merge;
 mod types;
+mod worktree;
 
 use clap::{Args, Parser, Subcommand};
 use logging::{brand_bold, muted, print_error, set_quiet};
