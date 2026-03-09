@@ -449,6 +449,19 @@ struct CleanArgs {
 }
 
 #[derive(Args)]
+struct DoctorArgs {
+    /// Output as JSON
+    #[arg(long)]
+    json: bool,
+    /// Verbose output
+    #[arg(long)]
+    verbose: bool,
+    /// Filter by category
+    #[arg(long)]
+    category: Option<String>,
+}
+
+#[derive(Args)]
 struct MailArgs {
     #[command(subcommand)]
     command: MailSubcommand,
