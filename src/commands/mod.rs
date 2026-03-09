@@ -1,8 +1,11 @@
 pub mod clean;
 pub mod costs;
 pub mod doctor;
+pub mod errors;
+pub mod feed;
 pub mod hooks;
 pub mod init;
+pub mod inspect;
 pub mod log;
 pub mod mail;
 pub mod merge;
@@ -11,3 +14,4 @@ pub mod sling;
 pub mod spec;
 pub mod status;
 pub mod stop;
+pub mod trace;
