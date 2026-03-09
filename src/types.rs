@@ -1,3 +1,5 @@
+#![allow(dead_code)]
+
 use std::collections::HashMap;
 use std::fmt;
 
@@ -171,6 +173,103 @@ pub struct OverstoryConfig {
     pub logging: LoggingConfig,
     pub coordinator: Option<CoordinatorConfig>,
     pub runtime: Option<RuntimeConfig>,
+}
+
+/// Default quality gates for projects that don't specify any in config.yaml.
+pub fn default_quality_gates() -> Vec<QualityGate> {
+    vec![
+        QualityGate {
+            name: "Tests".to_string(),
+            command: "bun test".to_string(),
+            description: "all tests must pass".to_string(),
+        },
+        QualityGate {
+            name: "Lint".to_string(),
+            command: "bun run lint".to_string(),
+            description: "zero errors".to_string(),
+        },
+        QualityGate {
+            name: "Typecheck".to_string(),
+            command: "bun run typecheck".to_string(),
+            description: "no TypeScript errors".to_string(),
+        },
+    ]
+}
+
+/// Default verification config applied when verification section exists but is partial.
+pub fn default_verification_config() -> VerificationConfig {
+    VerificationConfig {
+        dev_server_command: Some(String::new()),
+        base_url: Some("http://localhost:3000".to_string()),
+        port: Some(3000),
+        routes: Some(vec!["/".to_string()]),
+        viewports: Some(vec!["1280x720".to_string()]),
+    }
+}
+
+impl Default for OverstoryConfig {
+    fn default() -> Self {
+        let mut providers = std::collections::HashMap::new();
+        providers.insert(
+            "anthropic".to_string(),
+            ProviderConfig {
+                provider_type: "native".to_string(),
+                base_url: None,
+                auth_token_env: None,
+            },
+        );
+        Self {
+            project: ProjectConfig {
+                name: String::new(),
+                root: String::new(),
+                canonical_branch: "main".to_string(),
+                quality_gates: Some(default_quality_gates()),
+                verification: None,
+            },
+            agents: AgentsConfig {
+                manifest_path: ".overstory/agent-manifest.json".to_string(),
+                base_dir: ".overstory/agent-defs".to_string(),
+                max_concurrent: 25,
+                stagger_delay_ms: 2_000,
+                max_depth: 2,
+                max_sessions_per_run: 0,
+                max_agents_per_lead: 5,
+            },
+            worktrees: WorktreesConfig {
+                base_dir: ".overstory/worktrees".to_string(),
+            },
+            task_tracker: TaskTrackerConfig {
+                backend: TaskTrackerBackend::Auto,
+                enabled: true,
+            },
+            mulch: MulchConfig {
+                enabled: true,
+                domains: vec![],
+                prime_format: "markdown".to_string(),
+            },
+            merge: MergeConfig {
+                ai_resolve_enabled: true,
+                reimagine_enabled: false,
+            },
+            providers,
+            watchdog: WatchdogConfig {
+                tier0_enabled: true,
+                tier0_interval_ms: 30_000,
+                tier1_enabled: false,
+                tier2_enabled: false,
+                stale_threshold_ms: 300_000,
+                zombie_threshold_ms: 600_000,
+                nudge_interval_ms: 60_000,
+            },
+            models: std::collections::HashMap::new(),
+            logging: LoggingConfig {
+                verbose: false,
+                redact_secrets: true,
+            },
+            coordinator: None,
+            runtime: None,
+        }
+    }
 }
 
 // === Agent Manifest ===

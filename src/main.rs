@@ -4,7 +4,11 @@
 //! subcommands. Phase 0: each command prints "not yet implemented" until the
 //! corresponding command module is wired up.
 
+mod config;
+mod errors;
+mod json;
 mod logging;
+mod types;
 
 use clap::{Args, Parser, Subcommand};
 use logging::{brand_bold, muted, print_error, set_quiet};

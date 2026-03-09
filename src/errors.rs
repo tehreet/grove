@@ -1,4 +1,90 @@
+#![allow(dead_code)]
+
 use thiserror::Error;
+
+/// Builder-style config error, convertible to GroveError::Config.
+#[derive(Debug)]
+pub struct ConfigError {
+    pub message: String,
+    pub config_path: Option<String>,
+    pub field: Option<String>,
+}
+
+impl ConfigError {
+    pub fn new(message: impl Into<String>) -> Self {
+        Self {
+            message: message.into(),
+            config_path: None,
+            field: None,
+        }
+    }
+
+    pub fn with_path(mut self, path: impl Into<String>) -> GroveError {
+        self.config_path = Some(path.into());
+        self.into()
+    }
+}
+
+impl std::fmt::Display for ConfigError {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "config error: {}", self.message)
+    }
+}
+
+impl From<ConfigError> for GroveError {
+    fn from(e: ConfigError) -> Self {
+        GroveError::Config {
+            message: e.message,
+            config_path: e.config_path,
+            field: e.field,
+        }
+    }
+}
+
+/// Builder-style validation error, convertible to GroveError::Validation.
+#[derive(Debug)]
+pub struct ValidationError {
+    pub message: String,
+    pub field: Option<String>,
+}
+
+impl ValidationError {
+    pub fn new(message: impl Into<String>) -> Self {
+        Self {
+            message: message.into(),
+            field: None,
+        }
+    }
+
+    pub fn with_field(mut self, field: impl Into<String>) -> Self {
+        self.field = Some(field.into());
+        self
+    }
+
+    pub fn with_value<T: std::fmt::Display>(self, _value: T) -> Self {
+        // Value is included for context but doesn't change the error type
+        self
+    }
+}
+
+impl std::fmt::Display for ValidationError {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        if let Some(field) = &self.field {
+            write!(f, "validation error: {} (field: {})", self.message, field)
+        } else {
+            write!(f, "validation error: {}", self.message)
+        }
+    }
+}
+
+impl From<ValidationError> for GroveError {
+    fn from(e: ValidationError) -> Self {
+        GroveError::Validation {
+            message: e.message,
+            field: e.field,
+        }
+    }
+}
 
 #[derive(Debug, Error)]
 pub enum GroveError {
