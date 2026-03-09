@@ -12,8 +12,10 @@ mod errors;
 mod json;
 mod logging;
 mod merge;
+mod process;
 mod runtimes;
 mod types;
+mod watchdog;
 mod worktree;
 
 use clap::{Args, Parser, Subcommand};
@@ -204,8 +206,8 @@ enum Commands {
     /// Worktree management
     Worktree(PassthroughArgs),
 
-    /// Query agent logs
-    Log(PassthroughArgs),
+    /// Session lifecycle hooks (session-start / session-end)
+    Log(LogArgs),
 
     /// Query NDJSON logs across agents
     Logs(PassthroughArgs),
@@ -683,6 +685,43 @@ struct HooksStatusArgs {
 }
 
 #[derive(Args)]
+struct LogArgs {
+    #[command(subcommand)]
+    command: LogSubcommand,
+}
+
+#[derive(Subcommand)]
+enum LogSubcommand {
+    /// Mark session as working (called by SessionStart hook)
+    SessionStart(LogSessionStartArgs),
+    /// Mark session as completed (called by Stop hook)
+    SessionEnd(LogSessionEndArgs),
+}
+
+#[derive(Args)]
+struct LogSessionStartArgs {
+    /// Agent name
+    #[arg(long)]
+    agent: String,
+    /// Output as JSON
+    #[arg(long)]
+    json: bool,
+}
+
+#[derive(Args)]
+struct LogSessionEndArgs {
+    /// Agent name
+    #[arg(long)]
+    agent: String,
+    /// Exit code of the session
+    #[arg(long)]
+    exit_code: Option<i32>,
+    /// Output as JSON
+    #[arg(long)]
+    json: bool,
+}
+
+#[derive(Args)]
 struct CostsArgs {
     /// Filter by agent name
     #[arg(long)]
@@ -785,7 +824,27 @@ fn run_command(
             json: args.json || json,
             project_override: project,
         }),
-        Commands::Sling(_) => not_yet_implemented("sling", json),
+        Commands::Sling(args) => commands::sling::execute(commands::sling::SlingOptions {
+            task_id: &args.task_id,
+            capability: &args.capability,
+            name: args.name.as_deref(),
+            spec: args.spec.as_deref(),
+            files: args.files.as_deref(),
+            parent: args.parent.as_deref(),
+            depth: args.depth,
+            _skip_scout: args.skip_scout,
+            skip_task_check: args.skip_task_check,
+            force_hierarchy: args.force_hierarchy,
+            max_agents: args.max_agents,
+            skip_review: args.skip_review,
+            _no_scout_check: args.no_scout_check,
+            dispatch_max_agents: args.dispatch_max_agents,
+            runtime: args.runtime.as_deref(),
+            base_branch: args.base_branch.as_deref(),
+            no_directives: args.no_directives,
+            json: args.json || json,
+            project_override: project,
+        }),
         Commands::Spec(args) => match args.command {
             SpecSubcommand::Write(a) => commands::spec::execute_write(
                 &a.task_id,
@@ -873,7 +932,19 @@ fn run_command(
         ),
         Commands::Group(_) => not_yet_implemented("group", json),
         Commands::Worktree(_) => not_yet_implemented("worktree", json),
-        Commands::Log(_) => not_yet_implemented("log", json),
+        Commands::Log(args) => match args.command {
+            LogSubcommand::SessionStart(a) => commands::log::execute_session_start(
+                &a.agent,
+                a.json || json,
+                project,
+            ),
+            LogSubcommand::SessionEnd(a) => commands::log::execute_session_end(
+                &a.agent,
+                a.exit_code,
+                a.json || json,
+                project,
+            ),
+        },
         Commands::Logs(_) => not_yet_implemented("logs", json),
         Commands::Watch(_) => not_yet_implemented("watch", json),
         Commands::Trace(_) => not_yet_implemented("trace", json),
