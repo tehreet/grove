@@ -13,5 +13,17 @@
 		"status": "completed",
 		"createdAt": "2026-03-09T18:52:59.647Z",
 		"completedAt": "2026-03-09T19:58:57.307Z"
+	},
+	{
+		"id": "group-16248588",
+		"name": "phase-1-readonly-commands",
+		"memberIssueIds": [
+			"grove-53e2",
+			"grove-832b",
+			"grove-12d3"
+		],
+		"status": "active",
+		"createdAt": "2026-03-09T20:23:16.961Z",
+		"completedAt": null
 	}
 ]
