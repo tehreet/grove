@@ -5,6 +5,7 @@
 //! corresponding command module is wired up.
 
 mod config;
+mod db;
 mod errors;
 mod json;
 mod logging;

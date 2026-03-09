@@ -3,7 +3,32 @@
 use std::collections::HashMap;
 use std::fmt;
 
+use rusqlite::types::{FromSql, FromSqlError, FromSqlResult, ToSql, ToSqlOutput, ValueRef};
 use serde::{Deserialize, Serialize};
+
+macro_rules! impl_sql_enum {
+    ($t:ident, [$( ($variant:ident, $s:literal) ),* $(,)?]) => {
+        impl ToSql for $t {
+            fn to_sql(&self) -> rusqlite::Result<ToSqlOutput<'_>> {
+                let s: &'static str = match self {
+                    $( $t::$variant => $s, )*
+                };
+                Ok(s.into())
+            }
+        }
+        impl FromSql for $t {
+            fn column_result(value: ValueRef<'_>) -> FromSqlResult<Self> {
+                let s = String::column_result(value)?;
+                match s.as_str() {
+                    $( $s => Ok($t::$variant), )*
+                    other => Err(FromSqlError::Other(
+                        format!("unknown {} value: {}", stringify!($t), other).into(),
+                    )),
+                }
+            }
+        }
+    };
+}
 
 // === Type Aliases ===
 
@@ -365,6 +390,14 @@ impl fmt::Display for AgentState {
     }
 }
 
+impl_sql_enum!(AgentState, [
+    (Booting,   "booting"),
+    (Working,   "working"),
+    (Completed, "completed"),
+    (Stalled,   "stalled"),
+    (Zombie,    "zombie"),
+]);
+
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct AgentSession {
@@ -464,6 +497,21 @@ impl fmt::Display for MailMessageType {
     }
 }
 
+impl_sql_enum!(MailMessageType, [
+    (Status,      "status"),
+    (Question,    "question"),
+    (Result,      "result"),
+    (Error,       "error"),
+    (WorkerDone,  "worker_done"),
+    (MergeReady,  "merge_ready"),
+    (Merged,      "merged"),
+    (MergeFailed, "merge_failed"),
+    (Escalation,  "escalation"),
+    (HealthCheck, "health_check"),
+    (Dispatch,    "dispatch"),
+    (Assign,      "assign"),
+]);
+
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "lowercase")]
 pub enum MailPriority {
@@ -472,6 +520,13 @@ pub enum MailPriority {
     High,
     Urgent,
 }
+
+impl_sql_enum!(MailPriority, [
+    (Low,    "low"),
+    (Normal, "normal"),
+    (High,   "high"),
+    (Urgent, "urgent"),
+]);
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
@@ -488,6 +543,30 @@ pub struct MailMessage {
     pub payload: Option<String>,
     pub read: bool,
     pub created_at: String,
+}
+
+/// Input for inserting a mail message (id and created_at are auto-generated).
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct InsertMailMessage {
+    pub id: Option<String>,
+    pub from_agent: String,
+    pub to_agent: String,
+    pub subject: String,
+    pub body: String,
+    pub priority: MailPriority,
+    pub message_type: MailMessageType,
+    pub thread_id: Option<String>,
+    pub payload: Option<String>,
+}
+
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct MailFilters {
+    pub from_agent: Option<String>,
+    pub to_agent: Option<String>,
+    pub unread: Option<bool>,
+    pub limit: Option<i64>,
 }
 
 // === Mail Protocol Payloads ===
@@ -715,6 +794,13 @@ impl fmt::Display for ResolutionTier {
     }
 }
 
+impl_sql_enum!(ResolutionTier, [
+    (CleanMerge,  "clean-merge"),
+    (AutoResolve, "auto-resolve"),
+    (AiResolve,   "ai-resolve"),
+    (Reimagine,   "reimagine"),
+]);
+
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "lowercase")]
 pub enum MergeEntryStatus {
@@ -725,9 +811,18 @@ pub enum MergeEntryStatus {
     Failed,
 }
 
+impl_sql_enum!(MergeEntryStatus, [
+    (Pending,  "pending"),
+    (Merging,  "merging"),
+    (Merged,   "merged"),
+    (Conflict, "conflict"),
+    (Failed,   "failed"),
+]);
+
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct MergeEntry {
+    pub id: i64,
     pub branch_name: String,
     pub task_id: String,
     pub agent_name: String,
@@ -735,6 +830,15 @@ pub struct MergeEntry {
     pub enqueued_at: String,
     pub status: MergeEntryStatus,
     pub resolved_tier: Option<ResolutionTier>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct InsertMergeEntry {
+    pub branch_name: String,
+    pub task_id: String,
+    pub agent_name: String,
+    pub files_modified: Vec<String>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -823,7 +927,7 @@ pub struct SessionMetrics {
     pub completed_at: Option<String>,
     pub duration_ms: i64,
     pub exit_code: Option<i64>,
-    pub merge_result: Option<ResolutionTier>,
+    pub merge_result: Option<String>,
     pub parent_agent: Option<String>,
     pub input_tokens: i64,
     pub output_tokens: i64,
@@ -899,6 +1003,22 @@ pub enum EventType {
     Result,
 }
 
+impl_sql_enum!(EventType, [
+    (ToolStart,    "tool_start"),
+    (ToolEnd,      "tool_end"),
+    (SessionStart, "session_start"),
+    (SessionEnd,   "session_end"),
+    (MailSent,     "mail_sent"),
+    (MailReceived, "mail_received"),
+    (Spawn,        "spawn"),
+    (Error,        "error"),
+    (Custom,       "custom"),
+    (TurnStart,    "turn_start"),
+    (TurnEnd,      "turn_end"),
+    (Progress,     "progress"),
+    (Result,       "result"),
+]);
+
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "lowercase")]
 pub enum EventLevel {
@@ -907,6 +1027,13 @@ pub enum EventLevel {
     Warn,
     Error,
 }
+
+impl_sql_enum!(EventLevel, [
+    (Debug, "debug"),
+    (Info,  "info"),
+    (Warn,  "warn"),
+    (Error, "error"),
+]);
 
 impl EventLevel {
     pub const ALL: &'static [Self] = &[Self::Debug, Self::Info, Self::Warn, Self::Error];
@@ -945,8 +1072,16 @@ pub struct InsertEvent {
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
+pub struct ToolCorrelation {
+    pub start_event_id: i64,
+    pub started_at: String,
+    pub duration_ms: i64,
+}
+
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
 pub struct EventQueryOptions {
-    pub limit: Option<u32>,
+    pub limit: Option<i64>,
     pub since: Option<String>,
     pub until: Option<String>,
     pub level: Option<EventLevel>,
@@ -970,6 +1105,12 @@ pub enum RunStatus {
     Completed,
     Failed,
 }
+
+impl_sql_enum!(RunStatus, [
+    (Active,    "active"),
+    (Completed, "completed"),
+    (Failed,    "failed"),
+]);
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
@@ -1250,6 +1391,48 @@ pub struct InsightAnalysis {
     pub insights: Vec<SessionInsight>,
     pub tool_profile: ToolProfile,
     pub file_profile: FileProfile,
+}
+
+// === Database Query/Purge Options ===
+
+#[derive(Debug, Clone, Default)]
+pub struct PurgeSessionOpts {
+    pub all: bool,
+    pub state: Option<AgentState>,
+    pub agent: Option<String>,
+}
+
+#[derive(Debug, Clone, Default)]
+pub struct PurgeMailOpts {
+    pub all: bool,
+    pub older_than_ms: Option<i64>,
+    pub agent: Option<String>,
+}
+
+#[derive(Debug, Clone, Default)]
+pub struct PurgeEventOpts {
+    pub all: bool,
+    pub older_than_ms: Option<i64>,
+    pub agent_name: Option<String>,
+}
+
+#[derive(Debug, Clone, Default)]
+pub struct PurgeMetricsOpts {
+    pub all: bool,
+    pub agent: Option<String>,
+}
+
+#[derive(Debug, Clone, Default)]
+pub struct PurgeSnapshotOpts {
+    pub all: bool,
+    pub agent: Option<String>,
+    pub older_than_ms: Option<i64>,
+}
+
+#[derive(Debug, Clone, Default)]
+pub struct ListRunsOpts {
+    pub limit: Option<i64>,
+    pub status: Option<RunStatus>,
 }
 
 #[cfg(test)]
