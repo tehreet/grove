@@ -151,7 +151,7 @@ enum Commands {
     Sling(SlingArgs),
 
     /// Manage task specifications
-    Spec(PassthroughArgs),
+    Spec(SpecArgs),
 
     /// Load context for orchestrator/agent
     Prime(PrimeArgs),
@@ -181,7 +181,7 @@ enum Commands {
     Supervisor(PassthroughArgs),
 
     /// Manage lifecycle hooks
-    Hooks(PassthroughArgs),
+    Hooks(HooksArgs),
 
     /// Monitor agents in real time
     Monitor(PassthroughArgs),
@@ -193,7 +193,7 @@ enum Commands {
     Merge(MergeArgs),
 
     /// Send a text nudge to an agent
-    Nudge(PassthroughArgs),
+    Nudge(NudgeArgs),
 
     /// Group management
     Group(PassthroughArgs),
@@ -592,6 +592,94 @@ struct MergeArgs {
 }
 
 #[derive(Args)]
+struct NudgeArgs {
+    /// Name of the agent to nudge
+    agent_name: String,
+    /// Custom nudge message
+    #[arg(long)]
+    message: Option<String>,
+    /// Sender agent name (defaults to "operator")
+    #[arg(long, default_value = "operator")]
+    from: String,
+    /// Bypass debounce window
+    #[arg(long)]
+    force: bool,
+    /// Output as JSON
+    #[arg(long)]
+    json: bool,
+}
+
+#[derive(Args)]
+struct SpecArgs {
+    #[command(subcommand)]
+    command: SpecSubcommand,
+}
+
+#[derive(Subcommand)]
+enum SpecSubcommand {
+    /// Write a task specification file
+    Write(SpecWriteArgs),
+}
+
+#[derive(Args)]
+struct SpecWriteArgs {
+    /// Task ID
+    task_id: String,
+    /// Spec body content
+    #[arg(long)]
+    body: Option<String>,
+    /// Read spec from file
+    #[arg(long)]
+    file: Option<PathBuf>,
+    /// Agent name for tracking
+    #[arg(long)]
+    agent: Option<String>,
+    /// Output as JSON
+    #[arg(long)]
+    json: bool,
+}
+
+#[derive(Args)]
+struct HooksArgs {
+    #[command(subcommand)]
+    command: HooksSubcommand,
+}
+
+#[derive(Subcommand)]
+enum HooksSubcommand {
+    /// Install orchestrator hooks
+    Install(HooksInstallArgs),
+    /// Uninstall orchestrator hooks
+    Uninstall(HooksUninstallArgs),
+    /// Show hooks status
+    Status(HooksStatusArgs),
+}
+
+#[derive(Args)]
+struct HooksInstallArgs {
+    /// Overwrite existing hooks
+    #[arg(long)]
+    force: bool,
+    /// Output as JSON
+    #[arg(long)]
+    json: bool,
+}
+
+#[derive(Args)]
+struct HooksUninstallArgs {
+    /// Output as JSON
+    #[arg(long)]
+    json: bool,
+}
+
+#[derive(Args)]
+struct HooksStatusArgs {
+    /// Output as JSON
+    #[arg(long)]
+    json: bool,
+}
+
+#[derive(Args)]
 struct CostsArgs {
     /// Filter by agent name
     #[arg(long)]
@@ -682,11 +770,37 @@ fn run_command(
 ) -> Result<(), String> {
     match cmd {
         Commands::Agents(_) => not_yet_implemented("agents", json),
-        Commands::Init(_) => not_yet_implemented("init", json),
+        Commands::Init(args) => commands::init::execute(commands::init::InitOptions {
+            name: args.name,
+            yes: args.yes,
+            force: args.force,
+            tools: args.tools,
+            skip_mulch: args.skip_mulch,
+            skip_seeds: args.skip_seeds,
+            skip_canopy: args.skip_canopy,
+            skip_onboard: args.skip_onboard,
+            json: args.json || json,
+            project_override: project,
+        }),
         Commands::Sling(_) => not_yet_implemented("sling", json),
-        Commands::Spec(_) => not_yet_implemented("spec", json),
+        Commands::Spec(args) => match args.command {
+            SpecSubcommand::Write(a) => commands::spec::execute_write(
+                &a.task_id,
+                a.body,
+                a.file.as_deref(),
+                a.agent,
+                a.json || json,
+                project,
+            ),
+        },
         Commands::Prime(_) => not_yet_implemented("prime", json),
-        Commands::Stop(_) => not_yet_implemented("stop", json),
+        Commands::Stop(args) => commands::stop::execute(
+            &args.agent_name,
+            args.force,
+            args.clean_worktree,
+            args.json || json,
+            project,
+        ),
         Commands::Status(args) => commands::status::execute(
             args.agent,
             args.run,
@@ -696,14 +810,34 @@ fn run_command(
         ),
         Commands::Dashboard(_) => not_yet_implemented("dashboard", json),
         Commands::Inspect(_) => not_yet_implemented("inspect", json),
-        Commands::Clean(_) => not_yet_implemented("clean", json),
+        Commands::Clean(args) => commands::clean::execute(
+            args.all,
+            args.mail,
+            args.sessions,
+            args.metrics,
+            args.logs,
+            args.worktrees,
+            args.branches,
+            args.agents,
+            args.specs,
+            args.json || json,
+            project,
+        ),
         Commands::Doctor(args) => {
             let cmd_json = args.json || json;
             commands::doctor::execute(cmd_json, args.verbose, args.category)
         }
         Commands::Coordinator(_) => not_yet_implemented("coordinator", json),
         Commands::Supervisor(_) => not_yet_implemented("supervisor", json),
-        Commands::Hooks(_) => not_yet_implemented("hooks", json),
+        Commands::Hooks(args) => match args.command {
+            HooksSubcommand::Install(a) => commands::hooks::execute_install(
+                a.force,
+                a.json || json,
+                project,
+            ),
+            HooksSubcommand::Uninstall(a) => commands::hooks::execute_uninstall(a.json || json, project),
+            HooksSubcommand::Status(a) => commands::hooks::execute_status(a.json || json, project),
+        },
         Commands::Monitor(_) => not_yet_implemented("monitor", json),
         Commands::Mail(args) => match args.command {
             MailSubcommand::List(a) => {
@@ -726,7 +860,14 @@ fn run_command(
             args.json || json,
             project,
         ),
-        Commands::Nudge(_) => not_yet_implemented("nudge", json),
+        Commands::Nudge(args) => commands::nudge::execute(
+            &args.agent_name,
+            args.message.as_deref(),
+            &args.from,
+            args.force,
+            args.json || json,
+            project,
+        ),
         Commands::Group(_) => not_yet_implemented("group", json),
         Commands::Worktree(_) => not_yet_implemented("worktree", json),
         Commands::Log(_) => not_yet_implemented("log", json),

@@ -1,5 +1,11 @@
+pub mod clean;
 pub mod costs;
 pub mod doctor;
+pub mod hooks;
+pub mod init;
 pub mod mail;
 pub mod merge;
+pub mod nudge;
+pub mod spec;
 pub mod status;
+pub mod stop;
