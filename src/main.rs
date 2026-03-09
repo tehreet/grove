@@ -10,6 +10,7 @@ mod db;
 mod errors;
 mod json;
 mod logging;
+mod merge;
 mod types;
 
 use clap::{Args, Parser, Subcommand};
@@ -717,7 +718,14 @@ fn run_command(
             MailSubcommand::Reply(a) => commands::mail::execute_reply(&a.id, &a.body, &a.agent, json),
             MailSubcommand::Purge(a) => commands::mail::execute_purge(a.agent.as_deref(), a.all, a.days, json),
         },
-        Commands::Merge(_) => not_yet_implemented("merge", json),
+        Commands::Merge(args) => commands::merge::execute(
+            args.branch,
+            args.all,
+            args.into,
+            args.dry_run,
+            args.json || json,
+            project,
+        ),
         Commands::Nudge(_) => not_yet_implemented("nudge", json),
         Commands::Group(_) => not_yet_implemented("group", json),
         Commands::Worktree(_) => not_yet_implemented("worktree", json),
