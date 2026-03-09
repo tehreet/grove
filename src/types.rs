@@ -897,6 +897,37 @@ pub struct ConflictHistory {
     pub predicted_conflict_files: Vec<String>,
 }
 
+// === Merge Resolution Details ===
+
+/// A hunk of canonical content that was displaced (dropped) during auto-resolve.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct DisplacedHunk {
+    pub file: String,
+    pub canonical_content: String,
+    pub incoming_content: String,
+    pub line_start: usize,
+}
+
+/// How a specific conflict in a file was resolved.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ConflictResolution {
+    pub file: String,
+    pub strategy: String, // "keep-incoming" | "union"
+    pub displaced_hunks: Vec<DisplacedHunk>,
+}
+
+/// Detailed outcome of a merge operation, including displacement detection.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct MergeOutcome {
+    pub result: MergeResult,
+    pub resolutions: Vec<ConflictResolution>,
+    pub auto_committed_state_files: Vec<String>,
+    pub stashed: bool,
+}
+
 // === Watchdog ===
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
