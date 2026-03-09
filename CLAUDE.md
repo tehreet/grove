@@ -158,3 +158,17 @@ This injects prompt workflow context: commands, conventions, and common workflow
 
 **Do not manually edit emitted files.** Use `cn update` to modify prompts, then `cn emit` to regenerate.
 <!-- canopy:end -->
+
+## Critical: Incremental Commits
+
+**Commit after every meaningful change.** Do NOT wait until the end of your session to commit. Sessions can be interrupted by auth expiry, OOM kills, or network issues at any time. Uncommitted work is lost permanently.
+
+Pattern:
+1. Implement a function or module → `git add <files> && git commit -m "feat: <what>"`  
+2. Fix a compilation error → `git add <files> && git commit -m "fix: <what>"`
+3. Add tests → `git add <files> && git commit -m "test: <what>"`
+4. Continue to next piece
+
+If your session dies after step 1, steps 1's work is preserved. If you wait until step 4 to commit, everything is lost.
+
+**Commit every 3-5 minutes of work.** Small, frequent commits. This is a worktree branch — commit history doesn't matter, survival does.
