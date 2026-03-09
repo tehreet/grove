@@ -31,7 +31,7 @@ fn detect_project_name(root: &Path) -> String {
     {
         if output.status.success() {
             let url = String::from_utf8_lossy(&output.stdout).trim().to_string();
-            if let Some(last) = url.split('/').last() {
+            if let Some(last) = url.split('/').next_back() {
                 let name = last.trim_end_matches(".git");
                 if !name.is_empty() {
                     return name.to_string();
@@ -53,7 +53,7 @@ fn detect_canonical_branch(root: &Path) -> String {
     {
         if output.status.success() {
             let r = String::from_utf8_lossy(&output.stdout).trim().to_string();
-            if let Some(branch) = r.split('/').last() {
+            if let Some(branch) = r.split('/').next_back() {
                 if !branch.is_empty() {
                     return branch.to_string();
                 }
@@ -81,6 +81,7 @@ fn detect_canonical_branch(root: &Path) -> String {
 
 /// Build the starter agent manifest.
 pub fn build_agent_manifest() -> AgentManifest {
+    #[allow(clippy::type_complexity)]
     let role_specs: &[(&str, &str, &str, &[&str], &[&str], bool, &[&str])] = &[
         (
             "scout",
