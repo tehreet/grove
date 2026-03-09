@@ -62,8 +62,21 @@
 			"grove-e0f9",
 			"grove-f95b"
 		],
-		"status": "active",
+		"status": "completed",
 		"createdAt": "2026-03-09T22:02:40.456Z",
+		"completedAt": "2026-03-09T23:19:42.447Z"
+	},
+	{
+		"id": "group-07cbc617",
+		"name": "phase-4-coordinator-observability",
+		"memberIssueIds": [
+			"grove-fc52",
+			"grove-8517",
+			"grove-c067",
+			"grove-a6a1"
+		],
+		"status": "active",
+		"createdAt": "2026-03-09T23:22:45.532Z",
 		"completedAt": null
 	}
 ]

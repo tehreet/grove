@@ -246,6 +246,105 @@ impl EventStore {
         rows.collect::<rusqlite::Result<Vec<_>>>().map_err(GroveError::from)
     }
 
+    /// Query events with optional agent, type, and since-ID filters (for feed command).
+    pub fn get_feed(
+        &self,
+        agent: Option<&str>,
+        event_type: Option<&str>,
+        since_id: Option<i64>,
+        limit: Option<usize>,
+    ) -> Result<Vec<StoredEvent>> {
+        let mut sql = String::from(
+            "SELECT id, run_id, agent_name, session_id, event_type, tool_name, tool_args, tool_duration_ms, level, data, created_at
+             FROM events WHERE 1=1",
+        );
+        if let Some(agent) = agent {
+            sql.push_str(&format!(" AND agent_name = '{}'", agent.replace('\'', "''")));
+        }
+        if let Some(et) = event_type {
+            sql.push_str(&format!(" AND event_type = '{}'", et.replace('\'', "''")));
+        }
+        if let Some(id) = since_id {
+            sql.push_str(&format!(" AND id > {}", id));
+        }
+        sql.push_str(" ORDER BY id ASC");
+        if let Some(lim) = limit {
+            sql.push_str(&format!(" LIMIT {}", lim));
+        }
+        let mut stmt = self.conn.prepare(&sql)?;
+        let rows = stmt.query_map([], row_to_event)?;
+        rows.collect::<rusqlite::Result<Vec<_>>>().map_err(GroveError::from)
+    }
+
+    /// Query events for a specific task ID (across all agents with that task).
+    pub fn get_by_task(
+        &self,
+        task_id: &str,
+        limit: Option<usize>,
+    ) -> Result<Vec<StoredEvent>> {
+        // Events don't directly store task_id; we look for it in the data field
+        // or fall back to agent_name matching. For now, join via session_id in data.
+        let escaped = task_id.replace('\'', "''");
+        let mut sql = format!(
+            "SELECT id, run_id, agent_name, session_id, event_type, tool_name, tool_args, tool_duration_ms, level, data, created_at
+             FROM events WHERE data LIKE '%{}%'",
+            escaped
+        );
+        sql.push_str(" ORDER BY id ASC");
+        if let Some(lim) = limit {
+            sql.push_str(&format!(" LIMIT {}", lim));
+        }
+        let mut stmt = self.conn.prepare(&sql)?;
+        let rows = stmt.query_map([], row_to_event)?;
+        rows.collect::<rusqlite::Result<Vec<_>>>().map_err(GroveError::from)
+    }
+
+    /// Get the maximum event ID (for follow mode cursor).
+    pub fn get_max_id(&self) -> Result<i64> {
+        let id: i64 = self
+            .conn
+            .query_row("SELECT COALESCE(MAX(id), 0) FROM events", [], |r| r.get(0))?;
+        Ok(id)
+    }
+
+    /// Get error events grouped by agent: returns (agent_name, count, latest_event).
+    pub fn get_errors_grouped(
+        &self,
+        agent: Option<&str>,
+        limit: Option<usize>,
+    ) -> Result<Vec<(String, i64, StoredEvent)>> {
+        // Get counts per agent
+        let mut count_sql = String::from(
+            "SELECT agent_name, COUNT(*) FROM events WHERE level = 'error'",
+        );
+        if let Some(a) = agent {
+            count_sql.push_str(&format!(" AND agent_name = '{}'", a.replace('\'', "''")));
+        }
+        count_sql.push_str(" GROUP BY agent_name ORDER BY COUNT(*) DESC");
+        if let Some(lim) = limit {
+            count_sql.push_str(&format!(" LIMIT {}", lim));
+        }
+
+        let mut stmt = self.conn.prepare(&count_sql)?;
+        let agent_counts: Vec<(String, i64)> = stmt
+            .query_map([], |r| Ok((r.get::<_, String>(0)?, r.get::<_, i64>(1)?)))?
+            .collect::<rusqlite::Result<Vec<_>>>()
+            .map_err(GroveError::from)?;
+
+        let mut result = Vec::new();
+        for (agent_name, count) in agent_counts {
+            let latest_sql = format!(
+                "SELECT id, run_id, agent_name, session_id, event_type, tool_name, tool_args, tool_duration_ms, level, data, created_at
+                 FROM events WHERE level = 'error' AND agent_name = '{}' ORDER BY id DESC LIMIT 1",
+                agent_name.replace('\'', "''")
+            );
+            if let Ok(event) = self.conn.query_row(&latest_sql, [], row_to_event) {
+                result.push((agent_name, count, event));
+            }
+        }
+        Ok(result)
+    }
+
     pub fn purge(&self, opts: PurgeEventOpts) -> Result<i64> {
         let n = if opts.all {
             self.conn.execute("DELETE FROM events", [])?

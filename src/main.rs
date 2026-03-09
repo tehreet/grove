@@ -171,7 +171,7 @@ enum Commands {
     Dashboard(PassthroughArgs),
 
     /// Inspect agent details
-    Inspect(PassthroughArgs),
+    Inspect(InspectArgs),
 
     /// Wipe runtime state (nuclear cleanup)
     Clean(CleanArgs),
@@ -216,16 +216,16 @@ enum Commands {
     Watch(PassthroughArgs),
 
     /// Chronological event timeline for agent or task
-    Trace(PassthroughArgs),
+    Trace(TraceArgs),
 
     /// Manage ecosystem tools (mulch, seeds, canopy)
     Ecosystem(PassthroughArgs),
 
     /// Stream live event feed
-    Feed(PassthroughArgs),
+    Feed(FeedArgs),
 
     /// Query error events
-    Errors(PassthroughArgs),
+    Errors(ErrorsArgs),
 
     /// Replay agent sessions
     Replay(PassthroughArgs),
@@ -894,6 +894,53 @@ struct CostsArgs {
     json: bool,
 }
 
+#[derive(Args)]
+struct FeedArgs {
+    /// Follow mode — stream new events as they arrive
+    #[arg(long)]
+    follow: bool,
+    /// Filter by agent name
+    #[arg(long)]
+    agent: Option<String>,
+    /// Filter by event type
+    #[arg(long, name = "type")]
+    event_type: Option<String>,
+    /// Max number of events to show
+    #[arg(long)]
+    limit: Option<usize>,
+}
+
+#[derive(Args)]
+struct ErrorsArgs {
+    /// Filter by agent name
+    #[arg(long)]
+    agent: Option<String>,
+    /// Max number of agent groups to show
+    #[arg(long)]
+    limit: Option<usize>,
+    /// Output as JSON
+    #[arg(long)]
+    json: bool,
+}
+
+#[derive(Args)]
+struct InspectArgs {
+    /// Agent name to inspect
+    agent_name: String,
+    /// Output as JSON
+    #[arg(long)]
+    json: bool,
+}
+
+#[derive(Args)]
+struct TraceArgs {
+    /// Agent name or task ID to trace
+    subject: String,
+    /// Output as JSON
+    #[arg(long)]
+    json: bool,
+}
+
 // ---------------------------------------------------------------------------
 // Entry point
 // ---------------------------------------------------------------------------
@@ -1033,7 +1080,11 @@ fn run_command(
             project,
         ),
         Commands::Dashboard(_) => not_yet_implemented("dashboard", json),
-        Commands::Inspect(_) => not_yet_implemented("inspect", json),
+        Commands::Inspect(args) => commands::inspect::execute(
+            &args.agent_name,
+            args.json || json,
+            project,
+        ),
         Commands::Clean(args) => commands::clean::execute(
             args.force,
             args.all,
@@ -1147,10 +1198,26 @@ fn run_command(
         },
         Commands::Logs(_) => not_yet_implemented("logs", json),
         Commands::Watch(_) => not_yet_implemented("watch", json),
-        Commands::Trace(_) => not_yet_implemented("trace", json),
+        Commands::Trace(args) => commands::trace::execute(
+            &args.subject,
+            args.json || json,
+            project,
+        ),
         Commands::Ecosystem(_) => not_yet_implemented("ecosystem", json),
-        Commands::Feed(_) => not_yet_implemented("feed", json),
-        Commands::Errors(_) => not_yet_implemented("errors", json),
+        Commands::Feed(args) => commands::feed::execute(
+            args.follow,
+            args.agent,
+            args.event_type,
+            args.limit,
+            json,
+            project,
+        ),
+        Commands::Errors(args) => commands::errors::execute(
+            args.agent,
+            args.limit,
+            args.json || json,
+            project,
+        ),
         Commands::Replay(_) => not_yet_implemented("replay", json),
         Commands::Run(args) => {
             let cmd_json = args.json || json;
