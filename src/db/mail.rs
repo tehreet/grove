@@ -67,10 +67,7 @@ impl MailStore {
     }
 
     pub fn insert(&self, message: &InsertMailMessage) -> Result<MailMessage> {
-        let id = message
-            .id
-            .clone()
-            .unwrap_or_else(generate_mail_id);
+        let id = message.id.clone().unwrap_or_else(generate_mail_id);
         let now = chrono::Utc::now().to_rfc3339();
 
         self.conn.execute(
@@ -111,7 +108,8 @@ impl MailStore {
              FROM messages WHERE to_agent = ?1 AND read = 0 ORDER BY created_at ASC",
         )?;
         let rows = stmt.query_map(params![agent_name], row_to_message)?;
-        rows.collect::<rusqlite::Result<Vec<_>>>().map_err(GroveError::from)
+        rows.collect::<rusqlite::Result<Vec<_>>>()
+            .map_err(GroveError::from)
     }
 
     pub fn get_all(&self, filters: Option<MailFilters>) -> Result<Vec<MailMessage>> {
@@ -126,6 +124,9 @@ impl MailStore {
         if let Some(ref to) = filters.to_agent {
             sql.push_str(&format!(" AND to_agent = '{}'", to.replace('\'', "''")));
         }
+        if let Some(ref msg_type) = filters.message_type {
+            sql.push_str(&format!(" AND type = '{}'", msg_type.replace('\'', "''")));
+        }
         if let Some(unread) = filters.unread {
             sql.push_str(&format!(" AND read = {}", if unread { 0 } else { 1 }));
         }
@@ -136,7 +137,8 @@ impl MailStore {
 
         let mut stmt = self.conn.prepare(&sql)?;
         let rows = stmt.query_map([], row_to_message)?;
-        rows.collect::<rusqlite::Result<Vec<_>>>().map_err(GroveError::from)
+        rows.collect::<rusqlite::Result<Vec<_>>>()
+            .map_err(GroveError::from)
     }
 
     pub fn get_by_id(&self, id: &str) -> Result<Option<MailMessage>> {
@@ -158,14 +160,13 @@ impl MailStore {
              FROM messages WHERE thread_id = ?1 ORDER BY created_at ASC",
         )?;
         let rows = stmt.query_map(params![thread_id], row_to_message)?;
-        rows.collect::<rusqlite::Result<Vec<_>>>().map_err(GroveError::from)
+        rows.collect::<rusqlite::Result<Vec<_>>>()
+            .map_err(GroveError::from)
     }
 
     pub fn mark_read(&self, id: &str) -> Result<()> {
-        self.conn.execute(
-            "UPDATE messages SET read = 1 WHERE id = ?1",
-            params![id],
-        )?;
+        self.conn
+            .execute("UPDATE messages SET read = 1 WHERE id = ?1", params![id])?;
         Ok(())
     }
 
@@ -290,7 +291,12 @@ mod tests {
         store.insert(&make_message("alice", "bob")).unwrap();
         store.insert(&make_message("bob", "alice")).unwrap();
 
-        let to_bob = store.get_all(Some(MailFilters { to_agent: Some("bob".to_string()), ..Default::default() })).unwrap();
+        let to_bob = store
+            .get_all(Some(MailFilters {
+                to_agent: Some("bob".to_string()),
+                ..Default::default()
+            }))
+            .unwrap();
         assert_eq!(to_bob.len(), 1);
         assert_eq!(to_bob[0].to, "bob");
     }
@@ -300,7 +306,12 @@ mod tests {
         let store = MailStore::new(":memory:").unwrap();
         store.insert(&make_message("a", "b")).unwrap();
         store.insert(&make_message("c", "d")).unwrap();
-        let deleted = store.purge(PurgeMailOpts { all: true, ..Default::default() }).unwrap();
+        let deleted = store
+            .purge(PurgeMailOpts {
+                all: true,
+                ..Default::default()
+            })
+            .unwrap();
         assert_eq!(deleted, 2);
         assert!(store.get_all(None).unwrap().is_empty());
     }
@@ -310,7 +321,12 @@ mod tests {
         let store = MailStore::new(":memory:").unwrap();
         store.insert(&make_message("alice", "bob")).unwrap();
         store.insert(&make_message("carol", "dave")).unwrap();
-        let deleted = store.purge(PurgeMailOpts { agent: Some("alice".to_string()), ..Default::default() }).unwrap();
+        let deleted = store
+            .purge(PurgeMailOpts {
+                agent: Some("alice".to_string()),
+                ..Default::default()
+            })
+            .unwrap();
         assert_eq!(deleted, 1);
     }
 }

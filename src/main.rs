@@ -4,6 +4,7 @@
 //! subcommands. Phase 0: each command prints "not yet implemented" until the
 //! corresponding command module is wired up.
 
+mod commands;
 mod config;
 mod db;
 mod errors;
@@ -185,7 +186,7 @@ enum Commands {
     Monitor(PassthroughArgs),
 
     /// Mail system (send/check/list/read/reply)
-    Mail(PassthroughArgs),
+    Mail(MailArgs),
 
     /// Merge agent branches into canonical
     Merge(MergeArgs),
@@ -448,6 +449,63 @@ struct CleanArgs {
 }
 
 #[derive(Args)]
+struct MailArgs {
+    #[command(subcommand)]
+    command: MailSubcommand,
+}
+
+#[derive(Subcommand)]
+enum MailSubcommand {
+    /// List messages
+    List(MailListArgs),
+    /// Check unread messages for an agent
+    Check(MailCheckArgs),
+    /// Read a specific message
+    Read(MailReadArgs),
+    /// Send a message (not yet implemented)
+    Send(PassthroughArgs),
+    /// Reply to a message (not yet implemented)
+    Reply(PassthroughArgs),
+    /// Purge messages (not yet implemented)
+    Purge(PassthroughArgs),
+}
+
+#[derive(Args)]
+struct MailListArgs {
+    /// Filter by sender
+    #[arg(long)]
+    from: Option<String>,
+    /// Filter by recipient
+    #[arg(long)]
+    to: Option<String>,
+    /// Filter by message type
+    #[arg(long, name = "type")]
+    message_type: Option<String>,
+    /// Show only unread messages
+    #[arg(long)]
+    unread: bool,
+    /// Limit number of results
+    #[arg(long)]
+    limit: Option<i64>,
+}
+
+#[derive(Args)]
+struct MailCheckArgs {
+    /// Agent name to check mail for
+    #[arg(long)]
+    agent: String,
+    /// Output in inject format (for Claude Code hooks)
+    #[arg(long)]
+    inject: bool,
+}
+
+#[derive(Args)]
+struct MailReadArgs {
+    /// Message ID to read
+    id: String,
+}
+
+#[derive(Args)]
 struct MergeArgs {
     /// Merge a specific branch
     #[arg(long)]
@@ -550,7 +608,16 @@ fn run_command(cmd: Commands, json: bool, _verbose: bool) -> Result<(), String> 
         Commands::Supervisor(_) => not_yet_implemented("supervisor", json),
         Commands::Hooks(_) => not_yet_implemented("hooks", json),
         Commands::Monitor(_) => not_yet_implemented("monitor", json),
-        Commands::Mail(_) => not_yet_implemented("mail", json),
+        Commands::Mail(args) => match args.command {
+            MailSubcommand::List(a) => {
+                commands::mail::execute_list(a.from, a.to, a.message_type, a.unread, a.limit, json)
+            }
+            MailSubcommand::Check(a) => commands::mail::execute_check(&a.agent, a.inject, json),
+            MailSubcommand::Read(a) => commands::mail::execute_read(&a.id, json),
+            MailSubcommand::Send(_) => not_yet_implemented("mail send", json),
+            MailSubcommand::Reply(_) => not_yet_implemented("mail reply", json),
+            MailSubcommand::Purge(_) => not_yet_implemented("mail purge", json),
+        },
         Commands::Merge(_) => not_yet_implemented("merge", json),
         Commands::Nudge(_) => not_yet_implemented("nudge", json),
         Commands::Group(_) => not_yet_implemented("group", json),

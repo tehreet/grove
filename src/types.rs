@@ -390,13 +390,16 @@ impl fmt::Display for AgentState {
     }
 }
 
-impl_sql_enum!(AgentState, [
-    (Booting,   "booting"),
-    (Working,   "working"),
-    (Completed, "completed"),
-    (Stalled,   "stalled"),
-    (Zombie,    "zombie"),
-]);
+impl_sql_enum!(
+    AgentState,
+    [
+        (Booting, "booting"),
+        (Working, "working"),
+        (Completed, "completed"),
+        (Stalled, "stalled"),
+        (Zombie, "zombie"),
+    ]
+);
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
@@ -497,20 +500,23 @@ impl fmt::Display for MailMessageType {
     }
 }
 
-impl_sql_enum!(MailMessageType, [
-    (Status,      "status"),
-    (Question,    "question"),
-    (Result,      "result"),
-    (Error,       "error"),
-    (WorkerDone,  "worker_done"),
-    (MergeReady,  "merge_ready"),
-    (Merged,      "merged"),
-    (MergeFailed, "merge_failed"),
-    (Escalation,  "escalation"),
-    (HealthCheck, "health_check"),
-    (Dispatch,    "dispatch"),
-    (Assign,      "assign"),
-]);
+impl_sql_enum!(
+    MailMessageType,
+    [
+        (Status, "status"),
+        (Question, "question"),
+        (Result, "result"),
+        (Error, "error"),
+        (WorkerDone, "worker_done"),
+        (MergeReady, "merge_ready"),
+        (Merged, "merged"),
+        (MergeFailed, "merge_failed"),
+        (Escalation, "escalation"),
+        (HealthCheck, "health_check"),
+        (Dispatch, "dispatch"),
+        (Assign, "assign"),
+    ]
+);
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "lowercase")]
@@ -521,12 +527,27 @@ pub enum MailPriority {
     Urgent,
 }
 
-impl_sql_enum!(MailPriority, [
-    (Low,    "low"),
-    (Normal, "normal"),
-    (High,   "high"),
-    (Urgent, "urgent"),
-]);
+impl_sql_enum!(
+    MailPriority,
+    [
+        (Low, "low"),
+        (Normal, "normal"),
+        (High, "high"),
+        (Urgent, "urgent"),
+    ]
+);
+
+impl fmt::Display for MailPriority {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        let s = match self {
+            Self::Low => "low",
+            Self::Normal => "normal",
+            Self::High => "high",
+            Self::Urgent => "urgent",
+        };
+        write!(f, "{s}")
+    }
+}
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
@@ -565,6 +586,7 @@ pub struct InsertMailMessage {
 pub struct MailFilters {
     pub from_agent: Option<String>,
     pub to_agent: Option<String>,
+    pub message_type: Option<String>,
     pub unread: Option<bool>,
     pub limit: Option<i64>,
 }
@@ -794,12 +816,15 @@ impl fmt::Display for ResolutionTier {
     }
 }
 
-impl_sql_enum!(ResolutionTier, [
-    (CleanMerge,  "clean-merge"),
-    (AutoResolve, "auto-resolve"),
-    (AiResolve,   "ai-resolve"),
-    (Reimagine,   "reimagine"),
-]);
+impl_sql_enum!(
+    ResolutionTier,
+    [
+        (CleanMerge, "clean-merge"),
+        (AutoResolve, "auto-resolve"),
+        (AiResolve, "ai-resolve"),
+        (Reimagine, "reimagine"),
+    ]
+);
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "lowercase")]
@@ -811,13 +836,16 @@ pub enum MergeEntryStatus {
     Failed,
 }
 
-impl_sql_enum!(MergeEntryStatus, [
-    (Pending,  "pending"),
-    (Merging,  "merging"),
-    (Merged,   "merged"),
-    (Conflict, "conflict"),
-    (Failed,   "failed"),
-]);
+impl_sql_enum!(
+    MergeEntryStatus,
+    [
+        (Pending, "pending"),
+        (Merging, "merging"),
+        (Merged, "merged"),
+        (Conflict, "conflict"),
+        (Failed, "failed"),
+    ]
+);
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
@@ -1003,21 +1031,24 @@ pub enum EventType {
     Result,
 }
 
-impl_sql_enum!(EventType, [
-    (ToolStart,    "tool_start"),
-    (ToolEnd,      "tool_end"),
-    (SessionStart, "session_start"),
-    (SessionEnd,   "session_end"),
-    (MailSent,     "mail_sent"),
-    (MailReceived, "mail_received"),
-    (Spawn,        "spawn"),
-    (Error,        "error"),
-    (Custom,       "custom"),
-    (TurnStart,    "turn_start"),
-    (TurnEnd,      "turn_end"),
-    (Progress,     "progress"),
-    (Result,       "result"),
-]);
+impl_sql_enum!(
+    EventType,
+    [
+        (ToolStart, "tool_start"),
+        (ToolEnd, "tool_end"),
+        (SessionStart, "session_start"),
+        (SessionEnd, "session_end"),
+        (MailSent, "mail_sent"),
+        (MailReceived, "mail_received"),
+        (Spawn, "spawn"),
+        (Error, "error"),
+        (Custom, "custom"),
+        (TurnStart, "turn_start"),
+        (TurnEnd, "turn_end"),
+        (Progress, "progress"),
+        (Result, "result"),
+    ]
+);
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "lowercase")]
@@ -1028,12 +1059,15 @@ pub enum EventLevel {
     Error,
 }
 
-impl_sql_enum!(EventLevel, [
-    (Debug, "debug"),
-    (Info,  "info"),
-    (Warn,  "warn"),
-    (Error, "error"),
-]);
+impl_sql_enum!(
+    EventLevel,
+    [
+        (Debug, "debug"),
+        (Info, "info"),
+        (Warn, "warn"),
+        (Error, "error"),
+    ]
+);
 
 impl EventLevel {
     pub const ALL: &'static [Self] = &[Self::Debug, Self::Info, Self::Warn, Self::Error];
@@ -1106,11 +1140,14 @@ pub enum RunStatus {
     Failed,
 }
 
-impl_sql_enum!(RunStatus, [
-    (Active,    "active"),
-    (Completed, "completed"),
-    (Failed,    "failed"),
-]);
+impl_sql_enum!(
+    RunStatus,
+    [
+        (Active, "active"),
+        (Completed, "completed"),
+        (Failed, "failed"),
+    ]
+);
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
@@ -1439,9 +1476,7 @@ pub struct ListRunsOpts {
 mod tests {
     use super::*;
 
-    fn roundtrip<T: Serialize + for<'de> Deserialize<'de> + PartialEq + std::fmt::Debug>(
-        value: T,
-    ) {
+    fn roundtrip<T: Serialize + for<'de> Deserialize<'de> + PartialEq + std::fmt::Debug>(value: T) {
         let json = serde_json::to_string(&value).expect("serialize");
         let back: T = serde_json::from_str(&json).expect("deserialize");
         assert_eq!(value, back);
