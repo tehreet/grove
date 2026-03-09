@@ -475,12 +475,12 @@ enum MailSubcommand {
     Check(MailCheckArgs),
     /// Read a specific message
     Read(MailReadArgs),
-    /// Send a message (not yet implemented)
-    Send(PassthroughArgs),
-    /// Reply to a message (not yet implemented)
-    Reply(PassthroughArgs),
-    /// Purge messages (not yet implemented)
-    Purge(PassthroughArgs),
+    /// Send a message
+    Send(MailSendArgs),
+    /// Reply to a message
+    Reply(MailReplyArgs),
+    /// Purge messages
+    Purge(MailPurgeArgs),
 }
 
 #[derive(Args)]
@@ -516,6 +516,59 @@ struct MailCheckArgs {
 struct MailReadArgs {
     /// Message ID to read
     id: String,
+}
+
+#[derive(Args)]
+struct MailSendArgs {
+    /// Recipient agent name
+    #[arg(long)]
+    to: String,
+    /// Message subject
+    #[arg(long)]
+    subject: String,
+    /// Message body
+    #[arg(long)]
+    body: String,
+    /// Message type (status, question, result, error, worker_done, merge_ready, merged, merge_failed, escalation, health_check, dispatch, assign)
+    #[arg(long, name = "type", default_value = "status")]
+    message_type: String,
+    /// Priority level (low, normal, high, urgent)
+    #[arg(long, default_value = "normal")]
+    priority: String,
+    /// Thread ID to associate with
+    #[arg(long)]
+    thread: Option<String>,
+    /// Sender agent name (defaults to "operator")
+    #[arg(long, default_value = "operator")]
+    agent: String,
+    /// Structured JSON payload
+    #[arg(long)]
+    payload: Option<String>,
+}
+
+#[derive(Args)]
+struct MailReplyArgs {
+    /// Message ID to reply to
+    id: String,
+    /// Reply body
+    #[arg(long)]
+    body: String,
+    /// Sender agent name (defaults to "operator")
+    #[arg(long, default_value = "operator")]
+    agent: String,
+}
+
+#[derive(Args)]
+struct MailPurgeArgs {
+    /// Purge messages for specific agent
+    #[arg(long)]
+    agent: Option<String>,
+    /// Purge all messages
+    #[arg(long)]
+    all: bool,
+    /// Purge messages older than N days
+    #[arg(long)]
+    days: Option<u32>,
 }
 
 #[derive(Args)]
@@ -657,9 +710,12 @@ fn run_command(
             }
             MailSubcommand::Check(a) => commands::mail::execute_check(&a.agent, a.inject, json),
             MailSubcommand::Read(a) => commands::mail::execute_read(&a.id, json),
-            MailSubcommand::Send(_) => not_yet_implemented("mail send", json),
-            MailSubcommand::Reply(_) => not_yet_implemented("mail reply", json),
-            MailSubcommand::Purge(_) => not_yet_implemented("mail purge", json),
+            MailSubcommand::Send(a) => commands::mail::execute_send(
+                &a.to, &a.subject, &a.body, &a.message_type, &a.priority,
+                a.thread.as_deref(), &a.agent, a.payload.as_deref(), json,
+            ),
+            MailSubcommand::Reply(a) => commands::mail::execute_reply(&a.id, &a.body, &a.agent, json),
+            MailSubcommand::Purge(a) => commands::mail::execute_purge(a.agent.as_deref(), a.all, a.days, json),
         },
         Commands::Merge(_) => not_yet_implemented("merge", json),
         Commands::Nudge(_) => not_yet_implemented("nudge", json),
