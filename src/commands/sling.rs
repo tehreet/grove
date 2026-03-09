@@ -695,12 +695,13 @@ fn do_spawn(ctx: DoSpawnContext<'_>) -> Result<(), String> {
 // ---------------------------------------------------------------------------
 
 /// Spawn a headless agent (stdin/stdout pipes), write beacon, orphan process.
+#[allow(clippy::too_many_arguments)]
 fn spawn_headless(
     agent_name: &str,
     task_id: &str,
     worktree_path: &Path,
     log_dir: &Path,
-    runtime: &Box<dyn crate::runtimes::AgentRuntime>,
+    runtime: &dyn crate::runtimes::AgentRuntime,
     model: &ResolvedModel,
     parent_agent: Option<&str>,
     depth: u32,
@@ -771,13 +772,14 @@ fn spawn_headless(
 }
 
 /// Spawn an interactive tmux session and send the beacon.
+#[allow(clippy::too_many_arguments)]
 fn spawn_tmux(
     project_name: &str,
     agent_name: &str,
     capability: &str,
     task_id: &str,
     worktree_path: &Path,
-    runtime: &Box<dyn crate::runtimes::AgentRuntime>,
+    runtime: &dyn crate::runtimes::AgentRuntime,
     model: &ResolvedModel,
     parent_agent: Option<&str>,
     depth: u32,
