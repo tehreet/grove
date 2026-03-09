@@ -525,85 +525,6 @@ struct MergeArgs {
 }
 
 #[derive(Args)]
-struct DoctorArgs {
-    /// Output as JSON
-    #[arg(long)]
-    json: bool,
-    /// Show all checks including passing (default: only problems)
-    #[arg(long)]
-    verbose: bool,
-    /// Run only one category of checks
-    #[arg(long)]
-    category: Option<String>,
-}
-
-#[derive(Args)]
-struct MailArgs {
-    #[command(subcommand)]
-    command: MailCommands,
-}
-
-#[derive(Subcommand)]
-enum MailCommands {
-    /// List messages
-    List(MailListArgs),
-    /// Check for new messages
-    Check(MailCheckArgs),
-    /// Read a message
-    Read(MailReadArgs),
-    /// Send a message (Phase 2)
-    Send(PassthroughArgs),
-    /// Reply to a message (Phase 2)
-    Reply(PassthroughArgs),
-    /// Purge messages (Phase 2)
-    Purge(PassthroughArgs),
-}
-
-#[derive(Args)]
-struct MailListArgs {
-    /// Filter by recipient
-    #[arg(long)]
-    to: Option<String>,
-    /// Filter by sender
-    #[arg(long)]
-    from: Option<String>,
-    /// Filter by message type
-    #[arg(long, name = "type")]
-    msg_type: Option<String>,
-    /// Show only unread messages
-    #[arg(long)]
-    unread: bool,
-    /// Maximum number of messages to show
-    #[arg(long)]
-    limit: Option<usize>,
-    /// Output as JSON
-    #[arg(long)]
-    json: bool,
-}
-
-#[derive(Args)]
-struct MailCheckArgs {
-    /// Agent to check mail for
-    #[arg(long)]
-    agent: Option<String>,
-    /// Inject format for Claude Code hooks
-    #[arg(long)]
-    inject: bool,
-    /// Output as JSON
-    #[arg(long)]
-    json: bool,
-}
-
-#[derive(Args)]
-struct MailReadArgs {
-    /// Message ID to read
-    id: String,
-    /// Output as JSON
-    #[arg(long)]
-    json: bool,
-}
-
-#[derive(Args)]
 struct CostsArgs {
     /// Filter by agent name
     #[arg(long)]
@@ -611,7 +532,7 @@ struct CostsArgs {
     /// Filter by run ID
     #[arg(long)]
     run: Option<String>,
-    /// Show live token snapshots
+    /// Show latest token snapshots (live cost tracking)
     #[arg(long)]
     live: bool,
     /// Output as JSON
@@ -668,7 +589,7 @@ fn main() {
         None
     };
 
-    let result = run_command(cli.command, cli.json, cli.verbose);
+    let result = run_command(cli.command, cli.json, cli.verbose, cli.project.as_deref());
 
     if let Some(t) = start {
         let elapsed = t.elapsed();
@@ -686,7 +607,12 @@ fn main() {
     }
 }
 
-fn run_command(cmd: Commands, json: bool, _verbose: bool) -> Result<(), String> {
+fn run_command(
+    cmd: Commands,
+    json: bool,
+    _verbose: bool,
+    project: Option<&std::path::Path>,
+) -> Result<(), String> {
     match cmd {
         Commands::Agents(_) => not_yet_implemented("agents", json),
         Commands::Init(_) => not_yet_implemented("init", json),
@@ -694,7 +620,13 @@ fn run_command(cmd: Commands, json: bool, _verbose: bool) -> Result<(), String> 
         Commands::Spec(_) => not_yet_implemented("spec", json),
         Commands::Prime(_) => not_yet_implemented("prime", json),
         Commands::Stop(_) => not_yet_implemented("stop", json),
-        Commands::Status(_) => not_yet_implemented("status", json),
+        Commands::Status(args) => commands::status::execute(
+            args.agent,
+            args.run,
+            args.compact,
+            args.json || json,
+            project,
+        ),
         Commands::Dashboard(_) => not_yet_implemented("dashboard", json),
         Commands::Inspect(_) => not_yet_implemented("inspect", json),
         Commands::Clean(_) => not_yet_implemented("clean", json),
@@ -729,7 +661,13 @@ fn run_command(cmd: Commands, json: bool, _verbose: bool) -> Result<(), String> 
         Commands::Errors(_) => not_yet_implemented("errors", json),
         Commands::Replay(_) => not_yet_implemented("replay", json),
         Commands::Run(_) => not_yet_implemented("run", json),
-        Commands::Costs(_) => not_yet_implemented("costs", json),
+        Commands::Costs(args) => commands::costs::execute(
+            args.agent,
+            args.run,
+            args.live,
+            args.json || json,
+            project,
+        ),
         Commands::Metrics(_) => not_yet_implemented("metrics", json),
         Commands::Eval(_) => not_yet_implemented("eval", json),
         Commands::Update(_) => not_yet_implemented("update", json),
