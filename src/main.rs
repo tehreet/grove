@@ -11,6 +11,7 @@ mod errors;
 mod json;
 mod logging;
 mod merge;
+mod process;
 mod types;
 
 use clap::{Args, Parser, Subcommand};
