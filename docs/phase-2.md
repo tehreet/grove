@@ -1,178 +1,165 @@
 # Phase 2: Write Commands
 
-Build the commands that mutate state — databases, filesystem, tmux sessions, git operations. These are the commands users run to manage their agents and merge their work.
+Phase 1 proved grove can read real `.overstory/` databases. Now we make it write to them.
 
-Reference TypeScript is in `reference/`. Read it for behavior, write idiomatic Rust.
+## Context
 
-Rust toolchain is at `~/.cargo/bin/`. Quality gates: `cargo build`, `cargo test`, `cargo clippy -- -D warnings`.
+Phase 0 and 1 are complete. On main we have:
+- `src/types.rs` — all shared types with serde
+- `src/config.rs` — YAML config loader
+- `src/errors.rs` — thiserror errors
+- `src/db/` — all 5 database stores (sessions, mail, events, metrics, merge_queue)
+- `src/commands/status.rs` — working, reads real databases
+- `src/commands/mail.rs` — `mail list` and `mail check` working
+- `src/commands/costs.rs` — working, reads metrics.db
+- `src/commands/doctor.rs` — working, checks dependencies
+- `src/main.rs` — all 35 commands registered in clap
+- `src/logging/` — brand colors, formatters
+- `src/json.rs` — JSON output envelope
+
+167 tests passing. Compiles clean.
 
 ## Deliverables
 
-### 1. `grove mail send` + `grove mail reply` + `grove mail purge`
+### 1. `grove mail send` + `grove mail reply` + `grove mail read` + `grove mail purge`
 
-**File:** `src/commands/mail.rs` (extend existing)
+Reference: `reference/mail-store.ts`, existing `src/commands/mail.rs` and `src/db/mail.rs`
 
-`grove mail send`:
-- Flags: `--to <agent>`, `--subject <text>`, `--body <text>`, `--type <type>` (default: status), `--priority <prio>` (default: normal), `--thread <id>`, `--agent <name>` (sender, defaults to "operator"), `--payload <json>`
-- Generates UUID for message ID
-- Inserts into mail.db via the MailStore
-- Prints confirmation: "✓ Sent msg-{id} to {to}"
+**mail send:**
+```
+grove mail send --to <agent> --subject <subject> --body <body> [--type <type>] [--priority <priority>] [--from <agent>] [--thread <id>] [--payload <json>]
+```
+- Inserts into mail.db messages table
+- Auto-generates UUID for message ID
+- `--from` defaults to "operator" (human user)
+- `--type` defaults to "status", valid: status, question, result, error, dispatch, worker_done, merge_ready, merged, merge_failed, escalation, health_check, assign
+- `--priority` defaults to "normal", valid: low, normal, high, urgent
+- Prints confirmation with message ID
 
-`grove mail reply`:
-- Flags: `--id <msg-id>` (message to reply to), `--body <text>`, `--agent <name>`
-- Looks up original message, uses its thread_id (or creates one from original id)
-- Swaps from/to
+**mail reply:**
+```
+grove mail reply <message-id> --body <body> [--type <type>]
+```
+- Reads the original message to get from/to (swaps them), subject (prepends "Re: "), thread_id
 - Inserts reply
 
-`grove mail purge`:
-- Flags: `--agent <name>` (purge for specific agent), `--all` (purge everything)
-- Deletes from mail.db
-- Prints count of purged messages
+**mail read:**
+```
+grove mail read <message-id>
+```
+- Displays full message (from, to, subject, body, type, priority, time, payload)
+- Marks as read
+
+**mail purge:**
+```
+grove mail purge [--agent <name>] [--all]
+```
+- Deletes messages. `--agent` purges for one agent, `--all` purges everything.
+
+**mail check --inject:**
+```
+grove mail check --agent <name> --inject
+```
+- Returns unread messages formatted for injection into an agent's context (the hook format overstory uses)
+- Marks them as read
 
 ### 2. `grove clean`
 
-**File:** `src/commands/clean.rs` (new)
+Reference: `reference/` doesn't have clean.ts — read the overstory source at the TypeScript level description from docs/phase-0.md and docs/architecture.md.
 
-Reference: `reference/clean.ts` (793 lines)
+```
+grove clean [--worktrees] [--sessions] [--mail] [--events] [--metrics] [--merge-queue] [--all] [--force]
+```
 
-The nuclear cleanup command. Flags:
-- `--sessions` — wipe sessions.db
-- `--mail` — wipe mail.db  
-- `--events` — wipe events.db
-- `--metrics` — wipe metrics.db
-- `--merge-queue` — wipe merge-queue.db
-- `--worktrees` — remove all .overstory/worktrees/*, delete git worktrees, delete branches
-- `--tmux` — kill all overstory-* tmux sessions
+Nuclear cleanup command. Each flag targets a specific resource:
+- `--worktrees` — delete all `.overstory/worktrees/*`, run `git worktree prune`, kill associated tmux sessions
+- `--sessions` — delete sessions.db (or truncate the sessions table)
+- `--mail` — delete all messages from mail.db
+- `--events` — delete all events from events.db
+- `--metrics` — delete all from metrics.db
+- `--merge-queue` — delete all from merge-queue.db
 - `--all` — all of the above
 - `--force` — skip confirmation prompt
 
-Steps for `--worktrees`:
-1. List directories in `.overstory/worktrees/`
-2. For each: `git worktree remove --force <path>`
-3. Delete the branch: `git branch -D <branch>`
-4. Clean up session store entries
+For worktree cleanup:
+1. List all directories in `.overstory/worktrees/`
+2. For each, find the associated tmux session (query sessions.db for tmux_session column)
+3. Kill the tmux session: `tmux kill-session -t <name>`
+4. Remove the worktree directory: `rm -rf`
+5. Run `git worktree prune`
+6. Delete associated git branches: `git branch -D <branch>`
+7. Log synthetic session-end events to sessions.db before deleting
 
-Steps for `--tmux`:
-1. List tmux sessions matching `overstory-{project}-*`
-2. Kill each: `tmux kill-session -t <name>`
-3. Log synthetic session-end events
-
-Steps for database wipes:
-1. Delete the .db file
-2. Recreate with empty schema via the store's `create_tables()`
-
-Print summary: "✓ Clean complete" with counts.
+Print summary: "Killed N tmux sessions, Removed N worktrees, Wiped sessions.db" etc.
 
 ### 3. `grove stop`
 
-**File:** `src/commands/stop.rs` (new)
+```
+grove stop <agent-name> [--force] [--signal <signal>]
+```
 
-Reference: `reference/stop.ts` (250 lines)
-
-Stop a running agent. Args: `<agent-name>` or `--all`.
-- Flags: `--force` (SIGKILL instead of SIGTERM), `--grace <ms>` (grace period, default 2000)
-
-Steps:
-1. Look up agent in sessions.db
-2. If PID exists, send SIGTERM (or SIGKILL with --force)
-3. Wait grace period
-4. If still alive, send SIGKILL
-5. Kill tmux session: `tmux kill-session -t <session-name>`
-6. Update session state to "completed" in sessions.db
-7. Log session-end event
+- Look up agent in sessions.db by agent_name
+- Get its PID and tmux_session
+- Send SIGTERM to PID (or --signal override)
+- If --force, also kill the tmux session
+- Update session state to "completed" in sessions.db
+- Print confirmation
 
 ### 4. `grove nudge`
 
-**File:** `src/commands/nudge.rs` (new)
+```
+grove nudge <agent-name> <message>
+```
 
-Reference: `reference/nudge.ts` (280 lines)
-
-Send text to an agent's tmux session. Args: `<agent-name> <message>`.
-- Runs: `tmux send-keys -t <tmux-session> "<message>" Enter`
-- Verify session exists first
+- Look up agent's tmux_session in sessions.db
+- Send the message text to the tmux session via: `tmux send-keys -t <session> "<message>" Enter`
 - Print confirmation
 
-### 5. `grove merge`
+### 5. `grove init`
 
-**File:** `src/commands/merge.rs` (new) + `src/merge/resolver.rs` (new)
-
-Reference: `reference/merge-resolver.ts` (1,125 lines)
-
-`grove merge` subcommands:
-- `grove merge <branch>` — merge a specific branch
-- `grove merge --all` — merge all pending from queue
-- `grove merge --list` — list merge queue
-
-The resolver implements 3 tiers (AI-resolve is Phase 5, skip for now):
-
-**Tier 1: Clean merge**
 ```
-git merge --no-edit <branch>
-```
-If exit code 0 → success.
-
-**Tier 2: Auto-resolve with content-displacement detection**
-When git merge produces conflicts:
-1. List conflicted files: `git diff --name-only --diff-filter=U`
-2. For each file, read conflict markers
-3. Parse `<<<<<<<`, `=======`, `>>>>>>>` sections
-4. Keep incoming (theirs) changes
-5. BUT — compare "ours" content against the base: if lines from "ours" that existed before the merge are being dropped, flag as `ContentDisplaced`
-6. Stage resolved files: `git add <file>`
-7. Commit: `git commit --no-edit`
-
-**Return type must be the enum from architecture doc:**
-```rust
-pub enum MergeOutcome {
-    Clean { merged_files: Vec<String> },
-    Resolved { tier: ResolutionTier, resolutions: Vec<ConflictResolution> },
-    ContentDisplaced { tier: ResolutionTier, displaced: Vec<DisplacedHunk>, resolutions: Vec<ConflictResolution> },
-    Failed { attempted_tiers: Vec<ResolutionTier>, reason: String },
-}
+grove init [--name <project-name>] [--yes]
 ```
 
-When `ContentDisplaced` is returned, print a warning showing what was lost. Do NOT silently succeed.
+- Create `.overstory/` directory structure:
+  - `.overstory/config.yaml` (with defaults)
+  - `.overstory/agents/` (copy agent definitions)
+  - `.overstory/agent-defs/` (copy agent definitions)
+  - `.overstory/worktrees/`
+  - `.overstory/specs/`
+  - `.overstory/logs/`
+  - `.overstory/agent-manifest.json` (empty manifest)
+  - `.overstory/hooks.json`
+  - `.overstory/.gitignore` (ignore *.db, worktrees/)
+  - `.overstory/README.md`
+- Default config should have:
+  - project.name from --name or directory name
+  - project.root as absolute path to CWD
+  - project.canonicalBranch as "main"
+  - Sensible defaults for all other fields
+- If --yes, skip confirmation
+- Git commit the scaffold
 
-Update merge-queue.db status after merge.
+### 6. `grove spec write`
 
-### 6. `grove init`
+```
+grove spec write <task-id> --body <content> [--file <path>]
+```
 
-**File:** `src/commands/init.rs` (new)
+- Write a spec file to `.overstory/specs/<task-id>.md`
+- Content from --body or read from --file
+- Print path to created spec
 
-Reference: `reference/init.ts` (900 lines)
+### 7. `grove hooks install` / `grove hooks uninstall`
 
-Initialize `.overstory/` in the current project:
-1. Create directory structure: `.overstory/`, `.overstory/worktrees/`, `.overstory/specs/`, `.overstory/logs/`, `.overstory/agent-defs/`
-2. Write default `config.yaml` with project name from `--name` flag or directory name
-3. Copy agent definitions from embedded assets (build.rs embeds `agents/*.md`)
-4. Write `agent-manifest.json`
-5. Write `.overstory/.gitignore` (ignore *.db, worktrees/, logs/)
-6. Run `git add .overstory/ && git commit -m "chore: initialize overstory"`
-7. Print success with next steps
+```
+grove hooks install [--runtime <runtime>]
+grove hooks uninstall
+```
 
-Flags: `--name <project-name>`, `--yes` (skip confirmation)
-
-### 7. `grove hooks install/uninstall`
-
-**File:** `src/commands/hooks.rs` (new)
-
-Reference: `reference/hooks.ts` (280 lines)
-
-Manage Claude Code lifecycle hooks in `.claude/settings.local.json`:
-- `grove hooks install` — write hooks config that calls `grove log` on session start/end
-- `grove hooks uninstall` — remove the hooks config
-- `grove hooks status` — show current hook state
-
-### 8. `grove spec write`
-
-**File:** `src/commands/spec.rs` (new)
-
-Reference: `reference/spec.ts` (130 lines)
-
-Write a spec file:
-- `grove spec write <task-id> --body <text>` — writes to `.overstory/specs/<task-id>.md`
-- `grove spec write <task-id> --file <path>` — copies file content
-- `grove spec read <task-id>` — prints spec content
+- For Claude runtime: write `.claude/settings.local.json` with hooks configuration
+- The hooks JSON defines session-start and session-end hooks that call `grove log` commands
+- For uninstall: remove the hooks from settings.local.json
 
 ## File Scope
 
@@ -181,31 +168,38 @@ New files:
 - `src/commands/stop.rs`
 - `src/commands/nudge.rs`
 - `src/commands/init.rs`
-- `src/commands/hooks.rs`
 - `src/commands/spec.rs`
-- `src/merge/mod.rs`
-- `src/merge/resolver.rs`
+- `src/commands/hooks.rs`
 
 Modified files:
-- `src/commands/mail.rs` (add send/reply/purge)
-- `src/commands/mod.rs` (register new modules)
-- `src/main.rs` (wire new commands)
-- `src/types.rs` (add MergeOutcome, DisplacedHunk, ConflictResolution if not present)
+- `src/commands/mail.rs` — add send, reply, read, purge, check --inject
+- `src/commands/mod.rs` — register new modules
+- `src/main.rs` — wire new commands to implementations
 
 ## Quality Gates
 
-- `cargo build` — clean compilation
-- `cargo test` — all tests pass (write tests for: mail send roundtrip, clean wipes db, merge resolver tiers, init creates structure, spec write/read)
+- `cargo build` — clean, zero errors
+- `cargo test` — all existing 167 tests still pass + new tests for write operations
 - `cargo clippy -- -D warnings` — no warnings
+
+## Testing Strategy
+
+For write commands, tests should:
+1. Create a temp directory with `.overstory/` structure
+2. Create in-memory or temp-file SQLite databases
+3. Run the write operation
+4. Query the database to verify the write landed correctly
+5. For `clean`, verify files are actually deleted
+
+Integration test: run `grove mail send` then `grove mail list` and verify the sent message appears.
 
 ## Acceptance Criteria
 
-1. `grove mail send --to agent1 --subject "test" --body "hello"` inserts into mail.db and `grove mail list` shows it
-2. `grove clean --sessions --force` wipes sessions.db and recreates empty schema
-3. `grove stop <agent>` kills the process and tmux session, updates session state
-4. `grove nudge <agent> "hello"` sends text to tmux
-5. `grove merge <branch>` performs clean merge or auto-resolve with content-displacement detection
-6. `grove init --name testproject --yes` creates full `.overstory/` structure
-7. `grove hooks install` writes correct hooks JSON
-8. `grove spec write task-123 --body "do the thing"` creates the spec file
-9. Merge resolver NEVER returns success when content was displaced — always surfaces the warning
+1. `grove mail send --to agent1 --subject "test" --body "hello"` inserts a message and prints the ID
+2. `grove mail list` shows the newly sent message
+3. `grove mail read <id>` displays full message and marks as read
+4. `grove clean --all --force` wipes all databases and worktrees cleanly
+5. `grove stop <agent>` terminates the agent and updates sessions.db
+6. `grove nudge <agent> "keep going"` sends text to the agent's tmux session
+7. `grove init --name myproject --yes` creates a valid `.overstory/` directory
+8. All writes are compatible — overstory can read what grove writes and vice versa
