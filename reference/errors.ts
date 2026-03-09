@@ -1,217 +1,197 @@
 /**
- * Base error class for all Overstory errors.
- * Includes a machine-readable `code` field for programmatic handling.
+ * CLI command: ov errors [--agent <name>] [--run <id>] [--json] [--since <ts>] [--until <ts>] [--limit <n>]
+ *
+ * Shows aggregated error-level events across all agents.
+ * Errors can be filtered by agent name, run ID, or time range.
+ * Human output groups errors by agent; JSON output returns a flat array.
  */
-export class OverstoryError extends Error {
-	readonly code: string;
 
-	constructor(message: string, code: string, options?: ErrorOptions) {
-		super(message, options);
-		this.name = "OverstoryError";
-		this.code = code;
+import { join } from "node:path";
+import { Command } from "commander";
+import { loadConfig } from "../config.ts";
+import { ValidationError } from "../errors.ts";
+import { createEventStore } from "../events/store.ts";
+import { jsonOutput } from "../json.ts";
+import { accent, color } from "../logging/color.ts";
+import { buildEventDetail, formatAbsoluteTime, formatDate } from "../logging/format.ts";
+import { separator } from "../logging/theme.ts";
+import type { StoredEvent } from "../types.ts";
+
+/**
+ * Group errors by agent name, preserving insertion order.
+ */
+function groupByAgent(events: StoredEvent[]): Map<string, StoredEvent[]> {
+	const groups = new Map<string, StoredEvent[]>();
+	for (const event of events) {
+		const existing = groups.get(event.agentName);
+		if (existing) {
+			existing.push(event);
+		} else {
+			groups.set(event.agentName, [event]);
+		}
 	}
+	return groups;
 }
 
 /**
- * Raised when config loading or validation fails.
- * Examples: missing config file, invalid YAML, schema violations.
+ * Print errors grouped by agent with ANSI colors.
  */
-export class ConfigError extends OverstoryError {
-	readonly configPath: string | null;
-	readonly field: string | null;
+function printErrors(events: StoredEvent[]): void {
+	const w = process.stdout.write.bind(process.stdout);
 
-	constructor(
-		message: string,
-		context?: {
-			configPath?: string;
-			field?: string;
-			cause?: Error;
-		},
-	) {
-		super(message, "CONFIG_ERROR", { cause: context?.cause });
-		this.name = "ConfigError";
-		this.configPath = context?.configPath ?? null;
-		this.field = context?.field ?? null;
+	w(`${color.bold(color.red("Errors"))}\n${separator()}\n`);
+
+	if (events.length === 0) {
+		w(`${color.dim("No errors found.")}\n`);
+		return;
+	}
+
+	w(`${color.dim(`${events.length} error${events.length === 1 ? "" : "s"}`)}\n\n`);
+
+	const grouped = groupByAgent(events);
+
+	let firstGroup = true;
+	for (const [agentName, agentEvents] of grouped) {
+		if (!firstGroup) {
+			w("\n");
+		}
+		firstGroup = false;
+
+		w(
+			`${accent(agentName)} ${color.dim(`(${agentEvents.length} error${agentEvents.length === 1 ? "" : "s"})`)}\n`,
+		);
+
+		for (const event of agentEvents) {
+			const date = formatDate(event.createdAt);
+			const time = formatAbsoluteTime(event.createdAt);
+			const timestamp = date ? `${date} ${time}` : time;
+
+			const detail = buildEventDetail(event);
+			const detailSuffix = detail ? ` ${color.dim(detail)}` : "";
+
+			w(`  ${color.dim(timestamp)} ${color.red(color.bold("ERROR"))}${detailSuffix}\n`);
+		}
 	}
 }
 
-/**
- * Raised for agent lifecycle issues.
- * Examples: spawn failure, agent not found, depth limit exceeded.
- */
-export class AgentError extends OverstoryError {
-	readonly agentName: string | null;
-	readonly capability: string | null;
+interface ErrorsOpts {
+	agent?: string;
+	run?: string;
+	since?: string;
+	until?: string;
+	limit?: string;
+	json?: boolean;
+}
 
-	constructor(
-		message: string,
-		context?: {
-			agentName?: string;
-			capability?: string;
-			cause?: Error;
-		},
-	) {
-		super(message, "AGENT_ERROR", { cause: context?.cause });
-		this.name = "AgentError";
-		this.agentName = context?.agentName ?? null;
-		this.capability = context?.capability ?? null;
+async function executeErrors(opts: ErrorsOpts): Promise<void> {
+	const json = opts.json ?? false;
+	const agentName = opts.agent;
+	const runId = opts.run;
+	const sinceStr = opts.since;
+	const untilStr = opts.until;
+	const limitStr = opts.limit;
+	const limit = limitStr ? Number.parseInt(limitStr, 10) : 100;
+
+	if (Number.isNaN(limit) || limit < 1) {
+		throw new ValidationError("--limit must be a positive integer", {
+			field: "limit",
+			value: limitStr,
+		});
+	}
+
+	// Validate timestamps if provided
+	if (sinceStr !== undefined && Number.isNaN(new Date(sinceStr).getTime())) {
+		throw new ValidationError("--since must be a valid ISO 8601 timestamp", {
+			field: "since",
+			value: sinceStr,
+		});
+	}
+	if (untilStr !== undefined && Number.isNaN(new Date(untilStr).getTime())) {
+		throw new ValidationError("--until must be a valid ISO 8601 timestamp", {
+			field: "until",
+			value: untilStr,
+		});
+	}
+
+	const cwd = process.cwd();
+	const config = await loadConfig(cwd);
+	const overstoryDir = join(config.project.root, ".overstory");
+
+	// Open event store
+	const eventsDbPath = join(overstoryDir, "events.db");
+	const eventsFile = Bun.file(eventsDbPath);
+	if (!(await eventsFile.exists())) {
+		if (json) {
+			jsonOutput("errors", { events: [] });
+		} else {
+			process.stdout.write("No events data yet.\n");
+		}
+		return;
+	}
+
+	const eventStore = createEventStore(eventsDbPath);
+
+	try {
+		const queryOpts = {
+			since: sinceStr,
+			until: untilStr,
+			limit,
+		};
+
+		let events: StoredEvent[];
+
+		if (agentName !== undefined) {
+			// Filter by agent: use getByAgent with level filter
+			events = eventStore.getByAgent(agentName, { ...queryOpts, level: "error" });
+		} else if (runId !== undefined) {
+			// Filter by run: use getByRun with level filter
+			events = eventStore.getByRun(runId, { ...queryOpts, level: "error" });
+		} else {
+			// Global errors: use getErrors (already filters level='error')
+			events = eventStore.getErrors(queryOpts);
+		}
+
+		if (json) {
+			jsonOutput("errors", { events });
+			return;
+		}
+
+		printErrors(events);
+	} finally {
+		eventStore.close();
 	}
 }
 
-/**
- * Raised when hierarchy constraints are violated.
- * Examples: coordinator spawning a builder directly instead of through a lead.
- */
-export class HierarchyError extends OverstoryError {
-	readonly agentName: string | null;
-	readonly requestedCapability: string | null;
-
-	constructor(
-		message: string,
-		context?: {
-			agentName?: string;
-			requestedCapability?: string;
-			cause?: Error;
-		},
-	) {
-		super(message, "HIERARCHY_VIOLATION", { cause: context?.cause });
-		this.name = "HierarchyError";
-		this.agentName = context?.agentName ?? null;
-		this.requestedCapability = context?.requestedCapability ?? null;
-	}
+export function createErrorsCommand(): Command {
+	return new Command("errors")
+		.description("Aggregated error view across agents")
+		.option("--agent <name>", "Filter errors by agent name")
+		.option("--run <id>", "Filter errors by run ID")
+		.option("--since <timestamp>", "Start time filter (ISO 8601)")
+		.option("--until <timestamp>", "End time filter (ISO 8601)")
+		.option("--limit <n>", "Max errors to show (default: 100)")
+		.option("--json", "Output as JSON array of StoredEvent objects")
+		.action(async (opts: ErrorsOpts) => {
+			await executeErrors(opts);
+		});
 }
 
-/**
- * Raised when git worktree operations fail.
- * Examples: worktree creation, branch conflicts, cleanup failures.
- */
-export class WorktreeError extends OverstoryError {
-	readonly worktreePath: string | null;
-	readonly branchName: string | null;
-
-	constructor(
-		message: string,
-		context?: {
-			worktreePath?: string;
-			branchName?: string;
-			cause?: Error;
-		},
-	) {
-		super(message, "WORKTREE_ERROR", { cause: context?.cause });
-		this.name = "WorktreeError";
-		this.worktreePath = context?.worktreePath ?? null;
-		this.branchName = context?.branchName ?? null;
-	}
-}
-
-/**
- * Raised when mail system operations fail.
- * Examples: DB access errors, invalid message format, delivery failures.
- */
-export class MailError extends OverstoryError {
-	readonly agentName: string | null;
-	readonly messageId: string | null;
-
-	constructor(
-		message: string,
-		context?: {
-			agentName?: string;
-			messageId?: string;
-			cause?: Error;
-		},
-	) {
-		super(message, "MAIL_ERROR", { cause: context?.cause });
-		this.name = "MailError";
-		this.agentName = context?.agentName ?? null;
-		this.messageId = context?.messageId ?? null;
-	}
-}
-
-/**
- * Raised when merge or conflict resolution fails.
- * Examples: unresolvable conflicts, merge queue errors, tier escalation failures.
- */
-export class MergeError extends OverstoryError {
-	readonly branchName: string | null;
-	readonly conflictFiles: string[];
-
-	constructor(
-		message: string,
-		context?: {
-			branchName?: string;
-			conflictFiles?: string[];
-			cause?: Error;
-		},
-	) {
-		super(message, "MERGE_ERROR", { cause: context?.cause });
-		this.name = "MergeError";
-		this.branchName = context?.branchName ?? null;
-		this.conflictFiles = context?.conflictFiles ?? [];
-	}
-}
-
-/**
- * Raised when input validation fails.
- * Examples: invalid agent names, malformed taskIds, bad CLI arguments.
- */
-export class ValidationError extends OverstoryError {
-	readonly field: string | null;
-	readonly value: unknown;
-
-	constructor(
-		message: string,
-		context?: {
-			field?: string;
-			value?: unknown;
-			cause?: Error;
-		},
-	) {
-		super(message, "VALIDATION_ERROR", { cause: context?.cause });
-		this.name = "ValidationError";
-		this.field = context?.field ?? null;
-		this.value = context?.value ?? null;
-	}
-}
-
-/**
- * Raised when task group operations fail.
- * Examples: group not found, duplicate member, auto-close failures.
- */
-export class GroupError extends OverstoryError {
-	readonly groupId: string | null;
-
-	constructor(
-		message: string,
-		context?: {
-			groupId?: string;
-			cause?: Error;
-		},
-	) {
-		super(message, "GROUP_ERROR", { cause: context?.cause });
-		this.name = "GroupError";
-		this.groupId = context?.groupId ?? null;
-	}
-}
-
-/**
- * Raised when session lifecycle operations fail.
- * Examples: checkpoint save/restore failures, handoff failures.
- */
-export class LifecycleError extends OverstoryError {
-	readonly agentName: string | null;
-	readonly sessionId: string | null;
-
-	constructor(
-		message: string,
-		context?: {
-			agentName?: string;
-			sessionId?: string;
-			cause?: Error;
-		},
-	) {
-		super(message, "LIFECYCLE_ERROR", { cause: context?.cause });
-		this.name = "LifecycleError";
-		this.agentName = context?.agentName ?? null;
-		this.sessionId = context?.sessionId ?? null;
+export async function errorsCommand(args: string[]): Promise<void> {
+	const cmd = createErrorsCommand();
+	cmd.exitOverride();
+	try {
+		await cmd.parseAsync(args, { from: "user" });
+	} catch (err: unknown) {
+		if (err && typeof err === "object" && "code" in err) {
+			const code = (err as { code: string }).code;
+			if (code === "commander.helpDisplayed" || code === "commander.version") {
+				return;
+			}
+			if (code.startsWith("commander.")) {
+				const message = err instanceof Error ? err.message : String(err);
+				throw new ValidationError(message, { field: "args" });
+			}
+		}
+		throw err;
 	}
 }
