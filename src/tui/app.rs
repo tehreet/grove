@@ -311,13 +311,17 @@ impl App {
             if let Ok(count) = store.count_sessions() {
                 self.metric_session_count = count;
             }
-            if let Ok(snaps) = store.get_latest_snapshots(self.run_id.as_deref()) {
-                self.total_cost = snaps
-                    .iter()
-                    .filter_map(|s| s.estimated_cost_usd)
-                    .sum();
-                self.snapshots = snaps;
+            // Try current run first, fall back to all data if empty
+            let mut snaps = store.get_latest_snapshots(self.run_id.as_deref())
+                .unwrap_or_default();
+            if snaps.is_empty() {
+                snaps = store.get_latest_snapshots(None).unwrap_or_default();
             }
+            self.total_cost = snaps
+                .iter()
+                .filter_map(|s| s.estimated_cost_usd)
+                .sum();
+            self.snapshots = snaps;
         }
     }
 
