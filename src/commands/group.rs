@@ -40,6 +40,15 @@ fn save_groups(project_root: &str, groups: &[TaskGroup]) -> Result<(), String> {
     std::fs::write(&path, format!("{json}\n")).map_err(|e| e.to_string())
 }
 
+/// Find a group by name first, then by ID. Returns the index into `groups`.
+fn find_group_index(groups: &[TaskGroup], name_or_id: &str) -> Option<usize> {
+    // Prefer exact name match, fall back to ID match
+    groups
+        .iter()
+        .position(|g| g.name == name_or_id)
+        .or_else(|| groups.iter().position(|g| g.id == name_or_id))
+}
+
 fn generate_group_id() -> String {
     use std::time::{SystemTime, UNIX_EPOCH};
     let nanos = SystemTime::now()
@@ -169,10 +178,9 @@ pub fn execute_status(
     let groups = load_groups(root)?;
 
     if let Some(ref gid) = group_id {
-        let group = groups
-            .iter()
-            .find(|g| &g.id == gid)
+        let idx = find_group_index(&groups, gid)
             .ok_or_else(|| format!("Group \"{gid}\" not found"))?;
+        let group = &groups[idx];
 
         let progress = group_progress(group);
         if json {
@@ -224,10 +232,9 @@ pub fn execute_add(
     let root = &config.project.root;
     let mut groups = load_groups(root)?;
 
-    let group = groups
-        .iter_mut()
-        .find(|g| g.id == group_id)
+    let idx = find_group_index(&groups, group_id)
         .ok_or_else(|| format!("Group \"{group_id}\" not found"))?;
+    let group = &mut groups[idx];
 
     // Check for existing members
     for id in &ids {
@@ -277,10 +284,9 @@ pub fn execute_remove(
     let root = &config.project.root;
     let mut groups = load_groups(root)?;
 
-    let group = groups
-        .iter_mut()
-        .find(|g| g.id == group_id)
+    let idx = find_group_index(&groups, group_id)
         .ok_or_else(|| format!("Group \"{group_id}\" not found"))?;
+    let group = &mut groups[idx];
 
     // Validate all are members
     for id in &ids {
@@ -359,6 +365,26 @@ pub fn execute_list(json: bool, project_override: Option<&Path>) -> Result<(), S
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn test_find_group_index_by_name() {
+        let groups = vec![
+            TaskGroup {
+                id: "group-0a43bfbf".to_string(),
+                name: "mygroup".to_string(),
+                member_issue_ids: vec![],
+                status: TaskGroupStatus::Active,
+                created_at: "2024-01-01T00:00:00Z".to_string(),
+                completed_at: None,
+            },
+        ];
+        // lookup by name
+        assert_eq!(find_group_index(&groups, "mygroup"), Some(0));
+        // lookup by id
+        assert_eq!(find_group_index(&groups, "group-0a43bfbf"), Some(0));
+        // not found
+        assert_eq!(find_group_index(&groups, "unknown"), None);
+    }
 
     #[test]
     fn test_generate_group_id_format() {

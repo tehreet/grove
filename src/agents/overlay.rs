@@ -214,11 +214,21 @@ fn render_constraints(config: &OverlayConfig) -> String {
     )
 }
 
+/// Overlay template embedded at compile time as a fallback when the on-disk
+/// template is missing (e.g. in projects that haven't run `grove init` yet or
+/// in older grove-initialized projects).
+const EMBEDDED_OVERLAY_TEMPLATE: &str = include_str!("../../templates/overlay.md.tmpl");
+
 /// Load the overlay template from disk and render it.
+/// Falls back to the embedded template if the on-disk file doesn't exist.
 pub fn render_overlay_from_template(project_root: &Path, config: &OverlayConfig) -> Result<String, String> {
     let template_path = project_root.join("templates/overlay.md.tmpl");
-    let template = fs::read_to_string(&template_path)
-        .map_err(|e| format!("Failed to read overlay template at {}: {e}", template_path.display()))?;
+    let template = if template_path.exists() {
+        fs::read_to_string(&template_path)
+            .map_err(|e| format!("Failed to read overlay template at {}: {e}", template_path.display()))?
+    } else {
+        EMBEDDED_OVERLAY_TEMPLATE.to_string()
+    };
     Ok(render_overlay(&template, config))
 }
 

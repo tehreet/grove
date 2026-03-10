@@ -19,6 +19,10 @@ use crate::types::{AgentDefinition, AgentManifest, OverstoryConfig};
 
 const OVERSTORY_DIR: &str = ".overstory";
 
+/// Overlay template embedded at compile time so `grove init` can write it
+/// into new projects even without access to the grove source tree.
+pub const OVERLAY_TEMPLATE: &str = include_str!("../../templates/overlay.md.tmpl");
+
 // ---------------------------------------------------------------------------
 // Git detection helpers
 // ---------------------------------------------------------------------------
@@ -534,6 +538,17 @@ pub fn execute(opts: InitOptions<'_>) -> Result<(), String> {
     fs::write(&readme_path, OVERSTORY_README)
         .map_err(|e| format!("Failed to write README.md: {e}"))?;
     print_success("Created", Some(&format!("{OVERSTORY_DIR}/README.md")));
+
+    // 7c. Write templates/overlay.md.tmpl so `grove sling` works in this project
+    let templates_dir = project_root.join("templates");
+    fs::create_dir_all(&templates_dir)
+        .map_err(|e| format!("Failed to create templates/: {e}"))?;
+    let template_path = templates_dir.join("overlay.md.tmpl");
+    if !template_path.exists() {
+        fs::write(&template_path, OVERLAY_TEMPLATE)
+            .map_err(|e| format!("Failed to write templates/overlay.md.tmpl: {e}"))?;
+        print_success("Created", Some("templates/overlay.md.tmpl"));
+    }
 
     // 8. Bootstrap sibling ecosystem tools
     let tool_set: Vec<&SiblingTool> = SIBLING_TOOLS
