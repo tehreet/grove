@@ -2,8 +2,8 @@
 
 use std::path::PathBuf;
 
-use ratatui::widgets::TableState;
 use crate::tui::widgets::toasts::Toast;
+use ratatui::widgets::TableState;
 
 use crate::db::events::EventStore;
 use crate::db::mail::MailStore;
@@ -11,8 +11,8 @@ use crate::db::merge_queue::MergeQueue;
 use crate::db::metrics::MetricsStore;
 use crate::db::sessions::{RunStore, SessionStore};
 use crate::types::{
-    AgentSession, AgentState, MailFilters, MailMessage, MergeEntry, MergeEntryStatus,
-    StoredEvent, TokenSnapshot,
+    AgentSession, AgentState, MailFilters, MailMessage, MergeEntry, MergeEntryStatus, StoredEvent,
+    TokenSnapshot,
 };
 
 // ---------------------------------------------------------------------------
@@ -261,7 +261,8 @@ impl App {
         }
         if let Ok(store) = EventStore::new(&path) {
             // Fetch new events since last cursor
-            if let Ok(new_events) = store.get_feed(None, None, Some(self.last_event_id), Some(200)) {
+            if let Ok(new_events) = store.get_feed(None, None, Some(self.last_event_id), Some(200))
+            {
                 if let Some(last) = new_events.last() {
                     self.last_event_id = last.id;
                 }
@@ -312,15 +313,13 @@ impl App {
                 self.metric_session_count = count;
             }
             // Try current run first, fall back to all data if empty
-            let mut snaps = store.get_latest_snapshots(self.run_id.as_deref())
+            let mut snaps = store
+                .get_latest_snapshots(self.run_id.as_deref())
                 .unwrap_or_default();
             if snaps.is_empty() {
                 snaps = store.get_latest_snapshots(None).unwrap_or_default();
             }
-            self.total_cost = snaps
-                .iter()
-                .filter_map(|s| s.estimated_cost_usd)
-                .sum();
+            self.total_cost = snaps.iter().filter_map(|s| s.estimated_cost_usd).sum();
             self.snapshots = snaps;
         }
     }
@@ -375,8 +374,11 @@ impl App {
         self.tick_count += 1;
 
         // Capture previous state for toast detection
-        let prev_states: Vec<(String, AgentState)> = self.sessions.iter()
-            .map(|s| (s.agent_name.clone(), s.state)).collect();
+        let prev_states: Vec<(String, AgentState)> = self
+            .sessions
+            .iter()
+            .map(|s| (s.agent_name.clone(), s.state))
+            .collect();
         let prev_mail_count = self.messages.len();
 
         // Sessions + events every tick (1s)
@@ -436,14 +438,22 @@ impl App {
         // Terminal view: refresh tmux capture every tick
         if self.current_view == View::Terminal {
             if let Some(ref agent) = self.selected_agent.clone() {
-                self.terminal_lines = capture_tmux(&agent.tmux_session);
+                self.terminal_lines = capture_agent_output(
+                    &agent.tmux_session,
+                    &agent.agent_name,
+                    &self.project_root,
+                );
             }
         }
 
         // Split terminal view: refresh all split agents every tick
         if self.current_view == View::SplitTerminal {
             let agents = self.split_agents.clone();
-            self.split_lines = agents.iter().map(|a| capture_tmux(&a.tmux_session)).collect();
+            let project_root = self.project_root.clone();
+            self.split_lines = agents
+                .iter()
+                .map(|a| capture_agent_output(&a.tmux_session, &a.agent_name, &project_root))
+                .collect();
         }
     }
 
@@ -622,7 +632,11 @@ impl App {
             KeyCode::Enter => {
                 if let Some(agent) = self.split_agents.get(self.split_focus).cloned() {
                     self.selected_agent = Some(agent.clone());
-                    self.terminal_lines = capture_tmux(&agent.tmux_session);
+                    self.terminal_lines = capture_agent_output(
+                        &agent.tmux_session,
+                        &agent.agent_name,
+                        &self.project_root,
+                    );
                     self.terminal_scroll = 0;
                     self.current_view = View::Terminal;
                 }
@@ -798,7 +812,10 @@ impl App {
             None => return,
         };
 
-        let thread_id = original.thread_id.clone().unwrap_or_else(|| original.id.clone());
+        let thread_id = original
+            .thread_id
+            .clone()
+            .unwrap_or_else(|| original.id.clone());
 
         let reply = InsertMailMessage {
             id: None,
@@ -905,7 +922,8 @@ impl App {
             }
         };
         self.selected_agent = Some(agent.clone());
-        self.terminal_lines = capture_tmux(&agent.tmux_session);
+        self.terminal_lines =
+            capture_agent_output(&agent.tmux_session, &agent.agent_name, &self.project_root);
         self.terminal_scroll = 0;
         self.terminal_fullscreen = false;
         self.current_view = View::Terminal;
@@ -931,7 +949,11 @@ impl App {
             }
         }
 
-        let lines: Vec<Vec<String>> = agents.iter().map(|a| capture_tmux(&a.tmux_session)).collect();
+        let project_root = self.project_root.clone();
+        let lines: Vec<Vec<String>> = agents
+            .iter()
+            .map(|a| capture_agent_output(&a.tmux_session, &a.agent_name, &project_root))
+            .collect();
         self.split_agents = agents;
         self.split_lines = lines;
         self.split_focus = 0;
@@ -951,7 +973,10 @@ impl App {
                     return false;
                 }
                 if !self.filter_text.is_empty() {
-                    return s.agent_name.to_lowercase().contains(&self.filter_text.to_lowercase());
+                    return s
+                        .agent_name
+                        .to_lowercase()
+                        .contains(&self.filter_text.to_lowercase());
                 }
                 true
             })
@@ -1004,6 +1029,61 @@ pub fn capture_tmux(session_name: &str) -> Vec<String> {
             .collect(),
         _ => vec!["(tmux session not available)".to_string()],
     }
+}
+
+/// Capture agent output with fallback chain:
+/// 1. Try tmux capture-pane (backward compat with overstory agents)
+/// 2. If tmux fails or no session, read from .overstory/logs/<agent_name>/ (headless agents)
+/// 3. If no log file, show a "no output available" message
+pub fn capture_agent_output(
+    session_name: &str,
+    agent_name: &str,
+    project_root: &str,
+) -> Vec<String> {
+    // 1. Try tmux first if a session name is provided
+    if !session_name.is_empty() {
+        let output = std::process::Command::new("tmux")
+            .args(["capture-pane", "-t", session_name, "-p", "-S", "-100"])
+            .output();
+        if let Ok(out) = output {
+            if out.status.success() {
+                return String::from_utf8_lossy(&out.stdout)
+                    .lines()
+                    .map(|l| l.to_string())
+                    .collect();
+            }
+        }
+    }
+
+    // 2. Fallback: read from .overstory/logs/<agent_name>/ — most recent subdir
+    let log_base = std::path::Path::new(project_root)
+        .join(".overstory")
+        .join("logs")
+        .join(agent_name);
+
+    if log_base.is_dir() {
+        // Subdirectories are timestamp-named; sort alphabetically to get most recent
+        if let Ok(entries) = std::fs::read_dir(&log_base) {
+            let mut subdirs: Vec<std::path::PathBuf> = entries
+                .flatten()
+                .filter(|e| e.path().is_dir())
+                .map(|e| e.path())
+                .collect();
+            subdirs.sort();
+
+            if let Some(latest) = subdirs.last() {
+                let stdout_log = latest.join("stdout.log");
+                if let Ok(content) = std::fs::read_to_string(&stdout_log) {
+                    let lines: Vec<String> = content.lines().map(|l| l.to_string()).collect();
+                    let start = lines.len().saturating_sub(100);
+                    return lines[start..].to_vec();
+                }
+            }
+        }
+    }
+
+    // 3. Nothing available
+    vec!["(no output available — no tmux session or log file found)".to_string()]
 }
 
 pub fn state_priority(state: &AgentState) -> u8 {
@@ -1231,5 +1311,41 @@ mod tests {
         assert!(app.sessions.is_empty());
         assert!(app.events.is_empty());
         assert!(app.messages.is_empty());
+    }
+
+    #[test]
+    fn test_handle_key_navigate_to_timeline() {
+        use crossterm::event::{KeyCode, KeyEvent, KeyEventKind, KeyEventState, KeyModifiers};
+        let mut app = App::new("/tmp");
+        assert_eq!(app.current_view, View::Overview);
+        let key = KeyEvent {
+            code: KeyCode::Char('5'),
+            modifiers: KeyModifiers::NONE,
+            kind: KeyEventKind::Press,
+            state: KeyEventState::NONE,
+        };
+        app.handle_key(key);
+        assert_eq!(app.current_view, View::Timeline);
+    }
+
+    #[test]
+    fn test_capture_agent_output_no_session_no_log() {
+        let lines = capture_agent_output("", "nonexistent-agent", "/nonexistent");
+        assert_eq!(lines.len(), 1);
+        assert!(lines[0].contains("no output available"));
+    }
+
+    #[test]
+    fn test_capture_agent_output_reads_log_file() {
+        use std::fs;
+        let dir = tempfile::TempDir::new().unwrap();
+        let log_dir = dir
+            .path()
+            .join(".overstory/logs/test-agent/2024-01-01T00:00:00");
+        fs::create_dir_all(&log_dir).unwrap();
+        fs::write(log_dir.join("stdout.log"), "line1\nline2\nline3\n").unwrap();
+
+        let lines = capture_agent_output("", "test-agent", dir.path().to_str().unwrap());
+        assert_eq!(lines, vec!["line1", "line2", "line3"]);
     }
 }

@@ -52,10 +52,7 @@ pub fn render(f: &mut Frame, app: &mut App) {
         .min()
         .unwrap_or(now);
 
-    let total_secs = now
-        .signed_duration_since(run_start)
-        .num_seconds()
-        .max(60) as f64;
+    let total_secs = now.signed_duration_since(run_start).num_seconds().max(60) as f64;
 
     let name_width: usize = 14;
     let bar_width = (inner.width as usize).saturating_sub(name_width + 4);
@@ -126,10 +123,7 @@ fn render_agent_row(
     name_width: usize,
     bar_width: usize,
 ) -> Line<'static> {
-    let total_secs = now
-        .signed_duration_since(run_start)
-        .num_seconds()
-        .max(1) as f64;
+    let total_secs = now.signed_duration_since(run_start).num_seconds().max(1) as f64;
 
     let agent_start = DateTime::parse_from_rfc3339(&session.started_at)
         .map(|dt| dt.with_timezone(&Utc))
@@ -178,10 +172,7 @@ fn render_agent_row(
         Span::raw(gap),
         Span::styled(bar, Style::default().fg(state_color)),
         Span::raw(trail),
-        Span::styled(
-            format!(" {icon}"),
-            Style::default().fg(state_color),
-        ),
+        Span::styled(format!(" {icon}"), Style::default().fg(state_color)),
     ])
 }
 
