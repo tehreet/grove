@@ -472,3 +472,27 @@ fi
 3. Write stdout to `.overstory/logs/<agent>.log` for the TUI terminal viewer
 4. Detect process death and update session state to completed/zombie
 5. The watchdog should monitor headless PIDs the same way it monitors tmux sessions
+
+---
+
+### RETRO-032: Headless lifecycle complete — full spawn → work → complete cycle proven
+
+**What happened:** `grove sling --headless` now spawns agents as direct child processes with full lifecycle management:
+1. Spawns claude as child process with stdout/stderr piped to log files
+2. Immediately transitions session to `working`
+3. Agent reads overlay, does work, commits to branch
+4. Agent process exits
+5. Monitor daemon detects dead PID via /proc/<pid>
+6. Session transitions to `completed`
+
+**What we tried that didn't work:**
+- Background thread with `child.wait()` — the grove sling command exits before the thread runs, killing it
+- `std::mem::forget(child)` — orphans the process but no lifecycle tracking
+
+**What works:**
+- Orphan the child (drop the Child struct — process continues running)
+- Immediately mark as `working` in sessions.db
+- Rely on the watchdog/monitor daemon to poll PIDs and detect death
+- The watchdog already had headless PID detection via `is_pid_alive()` + empty `tmux_session`
+
+**Key insight:** CLI commands can't hold background threads — they exit and the threads die. Lifecycle monitoring must be a separate daemon (the monitor/watchdog), not inline in the spawning command. This is exactly why grove has a monitor daemon.

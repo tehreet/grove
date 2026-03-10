@@ -629,7 +629,7 @@ fn do_spawn(ctx: DoSpawnContext<'_>) -> Result<(), String> {
         .map_err(|e| format!("Failed to create log dir: {e}"))?;
 
     // Spawn the agent — headless flag overrides runtime default
-    let (pid, tmux_session) = if ctx.headless || runtime.is_headless() {
+    let (pid, tmux_session, child_process) = if ctx.headless || runtime.is_headless() {
         spawn_headless(ctx.agent_name, ctx.task_id, ctx.worktree_path, &agent_log_dir, runtime.as_ref(), &resolved_model, ctx.parent_agent, ctx.depth)?
     } else {
         spawn_tmux(&ctx.config.project.name, ctx.agent_name, ctx.capability, ctx.task_id, ctx.worktree_path, runtime.as_ref(), &resolved_model, ctx.parent_agent, ctx.depth)?
@@ -662,6 +662,15 @@ fn do_spawn(ctx: DoSpawnContext<'_>) -> Result<(), String> {
     ctx.session_store
         .upsert(&session)
         .map_err(|e| e.to_string())?;
+
+    // For headless agents: immediately mark as working.
+    // Process death detection is handled by the watchdog (poll_once checks PIDs).
+    // When the watchdog detects the PID is dead, it transitions to Completed.
+    if child_process.is_some() {
+        let _ = ctx.session_store.update_state(ctx.agent_name, AgentState::Working);
+        // Drop the child — it continues running as an orphaned process.
+        // The watchdog monitors its PID via /proc/<pid>.
+    }
 
     // Increment run agent count
     let run_store = RunStore::new(ctx.sessions_db_str).map_err(|e| e.to_string())?;
@@ -722,7 +731,7 @@ fn spawn_headless(
     model: &ResolvedModel,
     parent_agent: Option<&str>,
     depth: u32,
-) -> Result<(Option<i64>, String), String> {
+) -> Result<(Option<i64>, String, Option<std::process::Child>), String> {
     let spawn_opts = SpawnOpts {
         model: model.model.clone(),
         cwd: worktree_path.to_string_lossy().to_string(),
@@ -782,10 +791,7 @@ fn spawn_headless(
         // Drop stdin → EOF to child
     }
 
-    // Orphan: drop child without waiting (child runs as orphan in background)
-    std::mem::forget(child);
-
-    Ok((Some(pid), String::new()))
+    Ok((Some(pid), String::new(), Some(child)))
 }
 
 /// Spawn an interactive tmux session and send the beacon.
@@ -800,7 +806,7 @@ fn spawn_tmux(
     model: &ResolvedModel,
     parent_agent: Option<&str>,
     depth: u32,
-) -> Result<(Option<i64>, String), String> {
+) -> Result<(Option<i64>, String, Option<std::process::Child>), String> {
     tmux::ensure_tmux_available()?;
 
     let tmux_name = format!("overstory-{project_name}-{agent_name}");
@@ -835,7 +841,7 @@ fn spawn_tmux(
     );
     let _ = tmux::send_keys(&tmux_name, &beacon);
 
-    Ok((Some(tmux_pid as i64), tmux_name))
+    Ok((Some(tmux_pid as i64), tmux_name, None))
 }
 
 // ---------------------------------------------------------------------------
