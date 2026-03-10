@@ -22,7 +22,7 @@ mod worktree;
 
 use clap::{Args, CommandFactory, Parser, Subcommand};
 use clap_complete::Shell;
-use logging::{brand_bold, muted, print_error, set_quiet};
+use logging::{muted, print_error, set_quiet};
 use std::path::PathBuf;
 
 const VERSION: &str = env!("GROVE_VERSION");
