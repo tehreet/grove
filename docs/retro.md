@@ -496,3 +496,13 @@ fi
 - The watchdog already had headless PID detection via `is_pid_alive()` + empty `tmux_session`
 
 **Key insight:** CLI commands can't hold background threads — they exit and the threads die. Lifecycle monitoring must be a separate daemon (the monitor/watchdog), not inline in the spawning command. This is exactly why grove has a monitor daemon.
+
+---
+
+### RETRO-033: Codex sandbox prevents git commit — need --dangerously-bypass-approvals-and-sandbox
+
+**What happened:** Codex agent spawned via `grove sling --runtime codex`, read AGENTS.md, created the requested file. But `codex exec --full-auto --ephemeral` uses `workspace-write` sandbox which restricts git operations. The agent couldn't `git commit`.
+
+**Fix:** Use `--dangerously-bypass-approvals-and-sandbox` instead of `--full-auto` for overstory agents, since the agents run in isolated git worktrees (already sandboxed by grove). Or switch to `codex exec --approval-mode=never` which may allow git.
+
+**Broader lesson:** Each runtime has different permission/sandbox models. Claude Code uses `--dangerously-skip-permissions`. Codex needs its equivalent. The adapter must match the runtime's security model to grove's worktree-based isolation.
