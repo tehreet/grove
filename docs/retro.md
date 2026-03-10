@@ -160,3 +160,19 @@ Most failures fall into three categories:
 3. **Merge gap:** The coordinator doesn't merge branches reliably. Branches pile up, merge conflicts accumulate, and manual intervention is required. The coordinator must merge sequentially as agents complete, not batch at the end.
 
 All three are solvable in grove's coordinator by making verification commands, interface contracts, and sequential merge steps first-class parts of the orchestration loop.
+
+---
+
+### RETRO-011: RETRO-007 repeated — builders still don't wire commands in main.rs
+
+**What happened:** Phase 5 dispatch message explicitly said "RETRO-007: Wire every command in main.rs — no not_yet_implemented stubs remaining." The builders wrote 8 implementation files (logs.rs, replay.rs, metrics_cmd.rs, monitor.rs, watch_cmd.rs, prime.rs, ecosystem.rs). All 8 are still stubs in main.rs.
+
+**Root cause:** The retro lesson was communicated to the coordinator but not enforced structurally. The builders' file scope didn't include main.rs. The leads didn't check main.rs. The verification commands in the spec would have caught this, but the coordinator went zombie before running them.
+
+**Lesson for overstory/grove:**
+- Calling out retro lessons in the dispatch message is not enough. The lesson must be encoded in the spec's file scope and acceptance criteria.
+- Every phase spec must include main.rs in file scope if new commands are being added
+- The spec's verification commands must include: `grep 'not_yet_implemented.*<command>' src/main.rs` should return 0 matches
+- Consider making "no remaining stubs" a quality gate, not just an acceptance criterion
+
+**Proposed fix:** Add a CI check or quality gate that fails if any command in the clap enum dispatches to not_yet_implemented when an implementation file exists in src/commands/
