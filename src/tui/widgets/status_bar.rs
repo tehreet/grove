@@ -71,6 +71,13 @@ pub fn render(f: &mut Frame, app: &App, area: Rect) {
                 key("q"), label("quit"),
             ]
         }
+        View::MailReader => {
+            vec![
+                key("esc"), label("back"), sep.clone(),
+                key("r"), label("reply"), sep.clone(),
+                key("↑↓/jk"), label("scroll"),
+            ]
+        }
     };
 
     let bar = Paragraph::new(Line::from(spans));

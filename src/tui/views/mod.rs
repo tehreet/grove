@@ -3,6 +3,7 @@
 pub mod agent_detail;
 pub mod event_log;
 pub mod help;
+pub mod mail_reader;
 pub mod overview;
 pub mod split_terminal;
 pub mod terminal;
@@ -17,8 +18,12 @@ pub fn render(f: &mut Frame, app: &mut App) {
         View::Overview => overview::render(f, app),
         View::AgentDetail => agent_detail::render(f, app),
         View::EventLog => event_log::render(f, app),
+<<<<<<< HEAD
         View::Terminal => terminal::render(f, app),
         View::SplitTerminal => split_terminal::render(f, app),
+=======
+        View::MailReader => mail_reader::render(f, app),
+>>>>>>> overstory/mail-reader-builder/phase65-lead3
     }
 
     if app.show_help {
