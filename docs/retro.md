@@ -577,3 +577,39 @@ fi
 - Missing config: per-capability runtime routing (now added in Phase 9B)
 
 **Lesson:** Should have done this audit at Phase 1, not Phase 9. Building feature-for-feature without a gap analysis led to cumulative drift. The audit took 30 minutes and would have saved days of rework.
+
+---
+
+### RETRO-039: Codex adapter E2E success — grove group close built entirely by Codex/gpt-5.4
+
+**What happened:** Used `grove sling --runtime codex` to dispatch the `group close` feature spec to a Codex agent. The agent:
+1. Read AGENTS.md (grove's overlay)
+2. Read the spec at docs/feature-group-close.md
+3. Read existing src/commands/group.rs to understand patterns
+4. Read src/main.rs to understand the clap wiring
+5. Wrote 45 lines in group.rs (execute_close function)
+6. Wrote 16 lines in main.rs (GroupCloseArgs struct, enum variant, match arm)
+7. Ran cargo build, cargo test, cargo clippy — all passed
+8. Ran the verification commands from the spec
+9. Committed: "Add group close command" (commit 6221529)
+10. Exited cleanly after 44,312 tokens
+
+**Verification results:** All 8 verification commands pass. The code is correct, follows existing patterns, handles errors properly, supports --json. Merged to main with zero conflicts.
+
+**Codex adapter bugs found:**
+
+1. **TUI terminal viewer shows blank for Codex agents.** The TUI reads from stdout.log but Codex writes all progress to stderr. stdout.log is always empty for Codex. Fix: `capture_agent_output()` should read stderr.log as fallback when stdout.log is empty.
+
+2. **No unit tests written.** The spec said "all new code has unit tests" but Codex didn't write any. It ran the existing test suite (which passed) but didn't add tests for the new function. Claude Code agents typically add tests; Codex may need explicit "write tests in #[cfg(test)] mod tests" in the spec.
+
+3. **44,312 tokens for 61 lines of code.** Codex read a lot of context (the full group.rs, main.rs, spec, overlay, mail). This is expensive for a simple feature. For comparison, the simple proof-of-concept (create file + commit) used 10,921 tokens. The ratio is ~700 tokens per line of output code.
+
+**What worked well:**
+- `--no-directives` prevented the parallel cargo deadlock
+- The spec was explicit enough that Codex followed it exactly
+- main.rs wiring was done correctly (the #1 thing agents forget)
+- Error handling matches the spec (already closed, not found)
+- JSON output format matches the spec exactly
+- Code style matches existing patterns in group.rs
+
+**Conclusion:** The Codex adapter works for real feature development. The code quality is production-grade. Main gaps are: TUI stderr visibility, no test generation, high token usage.
