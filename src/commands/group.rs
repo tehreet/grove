@@ -112,15 +112,14 @@ pub fn execute_create(
     if name.trim().is_empty() {
         return Err("Group name is required".to_string());
     }
-    if ids.is_empty() {
-        return Err("At least one issue ID is required".to_string());
-    }
 
-    // Check for duplicates
-    let mut seen = std::collections::HashSet::new();
-    for id in &ids {
-        if !seen.insert(id) {
-            return Err(format!("Duplicate issue ID: {id}"));
+    // Check for duplicates (only when IDs are provided)
+    if !ids.is_empty() {
+        let mut seen = std::collections::HashSet::new();
+        for id in &ids {
+            if !seen.insert(id) {
+                return Err(format!("Duplicate issue ID: {id}"));
+            }
         }
     }
 
@@ -144,8 +143,12 @@ pub fn execute_create(
         println!("{}", json_output("group create", &group));
     } else {
         print_success("Created group", Some(&group.name));
-        let members: Vec<String> = group.member_issue_ids.iter().map(|id| accent(id).to_string()).collect();
-        println!("  Members: {}", members.join(", "));
+        if group.member_issue_ids.is_empty() {
+            println!("  Members: (none)");
+        } else {
+            let members: Vec<String> = group.member_issue_ids.iter().map(|id| accent(id).to_string()).collect();
+            println!("  Members: {}", members.join(", "));
+        }
     }
 
     Ok(())
@@ -379,11 +382,18 @@ mod tests {
 
     #[test]
     fn test_execute_create_validation() {
+        // Empty name should fail
         let result = execute_create("", vec!["id1".to_string()], false, Some(Path::new("/tmp")));
         assert!(result.is_err());
 
+        // Empty IDs should NOT fail (groups can be created empty)
+        // (config load will fail for /tmp, but name validation passes)
         let result = execute_create("mygroup", vec![], false, Some(Path::new("/tmp")));
-        assert!(result.is_err());
+        // May fail at config load, not at validation
+        match &result {
+            Err(e) => assert!(!e.contains("issue ID is required"), "Should not require issue IDs: {e}"),
+            Ok(_) => {}
+        }
     }
 
     #[test]
