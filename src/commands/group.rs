@@ -322,6 +322,51 @@ pub fn execute_remove(
 }
 
 // ---------------------------------------------------------------------------
+// Execute: close
+// ---------------------------------------------------------------------------
+
+pub fn execute_close(
+    group_id: &str,
+    json: bool,
+    project_override: Option<&Path>,
+) -> Result<(), String> {
+    let cwd = std::env::current_dir().map_err(|e| e.to_string())?;
+    let config = load_config(&cwd, project_override).map_err(|e| e.to_string())?;
+    let root = &config.project.root;
+    let mut groups = load_groups(root)?;
+
+    let idx = find_group_index(&groups, group_id)
+        .ok_or_else(|| format!("Group \"{group_id}\" not found"))?;
+    let group = &mut groups[idx];
+
+    if group.status == TaskGroupStatus::Completed {
+        return Err(format!("Group \"{group_id}\" is already closed"));
+    }
+
+    group.status = TaskGroupStatus::Completed;
+    group.completed_at = Some(chrono::Utc::now().to_rfc3339());
+
+    let group = group.clone();
+    save_groups(root, &groups)?;
+
+    if json {
+        println!(
+            "{}",
+            serde_json::json!({
+                "command": "group-close",
+                "success": true,
+                "groupId": group.id,
+                "name": group.name,
+            })
+        );
+    } else {
+        println!("✓ Group closed {} ({})", group.name, group.id);
+    }
+
+    Ok(())
+}
+
+// ---------------------------------------------------------------------------
 // Execute: list
 // ---------------------------------------------------------------------------
 

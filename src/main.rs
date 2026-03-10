@@ -643,6 +643,8 @@ enum GroupSubcommand {
     Add(GroupAddArgs),
     /// Remove issues from a group
     Remove(GroupRemoveArgs),
+    /// Close a task group
+    Close(GroupCloseArgs),
     /// List all groups
     List(GroupListArgs),
 }
@@ -684,6 +686,15 @@ struct GroupRemoveArgs {
     group_id: String,
     /// Issue IDs to remove
     ids: Vec<String>,
+    /// Output as JSON
+    #[arg(long)]
+    json: bool,
+}
+
+#[derive(Args)]
+struct GroupCloseArgs {
+    /// Group ID or name
+    group_id: String,
     /// Output as JSON
     #[arg(long)]
     json: bool,
@@ -1488,6 +1499,11 @@ fn run_command(
             GroupSubcommand::Remove(a) => commands::group::execute_remove(
                 &a.group_id,
                 a.ids,
+                a.json || json,
+                project,
+            ),
+            GroupSubcommand::Close(a) => commands::group::execute_close(
+                &a.group_id,
                 a.json || json,
                 project,
             ),
