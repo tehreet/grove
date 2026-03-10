@@ -12,11 +12,11 @@ use serde::Serialize;
 use crate::config::load_config;
 use crate::db::mail::MailStore;
 use crate::db::merge_queue::MergeQueue;
-use crate::types::MergeEntryStatus;
 use crate::db::metrics::MetricsStore;
 use crate::db::sessions::{RunStore, SessionStore};
 use crate::json::json_output;
 use crate::logging::{brand_bold, muted};
+use crate::types::MergeEntryStatus;
 use crate::types::{AgentSession, AgentState, MailFilters};
 
 // ---------------------------------------------------------------------------
@@ -89,7 +89,8 @@ pub fn execute(
     // --- Current run ---
     let current_run_id: Option<String> = if PathBuf::from(&sessions_db).exists() {
         let run_store = RunStore::new(&sessions_db).map_err(|e| e.to_string())?;
-        run_store.get_active_run()
+        run_store
+            .get_active_run()
             .ok()
             .flatten()
             .map(|r| r.id)
@@ -110,11 +111,13 @@ pub fn execute(
         MailStore::new(&mail_db)
             .ok()
             .and_then(|store| {
-                store.get_all(Some(MailFilters {
-                    to_agent: Some("orchestrator".to_string()),
-                    unread: Some(true),
-                    ..Default::default()
-                })).ok()
+                store
+                    .get_all(Some(MailFilters {
+                        to_agent: Some("orchestrator".to_string()),
+                        unread: Some(true),
+                        ..Default::default()
+                    }))
+                    .ok()
             })
             .map(|msgs| msgs.len())
             .unwrap_or(0)
@@ -192,7 +195,8 @@ fn print_status_text(
     let time_str = now.format("%H:%M:%S").to_string();
     if let Some(run_id) = current_run_id {
         let agent_count = sessions.len();
-        let total_cost: f64 = sessions.iter()
+        let total_cost: f64 = sessions
+            .iter()
             .filter_map(|_s| None::<f64>) // cost from sessions.db not available
             .sum();
         let cost_str = if total_cost > 0.0 {
@@ -252,7 +256,10 @@ fn format_agent_row(session: &AgentSession) -> String {
     let task = pad_right(&session.task_id, 14);
     let dur = pad_right(&duration, 10);
 
-    let row = format!("  {} {}  {}  {}  {}{}", icon, name, cap, state_col, task, dur);
+    let row = format!(
+        "  {} {}  {}  {}  {}{}",
+        icon, name, cap, state_col, task, dur
+    );
 
     // Color by state
     match session.state {
@@ -301,8 +308,7 @@ fn state_priority(state: &AgentState) -> u8 {
 }
 
 fn compute_duration(session: &AgentSession) -> String {
-    let start = DateTime::parse_from_rfc3339(&session.started_at)
-        .map(|dt| dt.with_timezone(&Utc));
+    let start = DateTime::parse_from_rfc3339(&session.started_at).map(|dt| dt.with_timezone(&Utc));
     let end = match session.state {
         AgentState::Completed | AgentState::Zombie => {
             DateTime::parse_from_rfc3339(&session.last_activity)
@@ -405,7 +411,6 @@ pub fn parse_git_worktree_list(text: &str) -> Vec<WorktreeInfo> {
 // ---------------------------------------------------------------------------
 // Tmux sessions
 // ---------------------------------------------------------------------------
-
 
 // ---------------------------------------------------------------------------
 // Tests

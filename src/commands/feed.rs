@@ -41,7 +41,10 @@ pub fn execute(
 
     if !std::path::PathBuf::from(&events_db).exists() {
         if json {
-            let out = FeedOutput { events: vec![], count: 0 };
+            let out = FeedOutput {
+                events: vec![],
+                count: 0,
+            };
             println!("{}", json_output("feed", &out));
         } else {
             println!("{}", muted("No events.db found"));
@@ -73,7 +76,10 @@ pub fn execute(
             .get_feed(agent.as_deref(), event_type.as_deref(), None, limit)
             .map_err(|e| e.to_string())?;
         if json {
-            let out = FeedOutput { count: events.len(), events };
+            let out = FeedOutput {
+                count: events.len(),
+                events,
+            };
             println!("{}", json_output("feed", &out));
         } else {
             if events.is_empty() {
@@ -106,7 +112,11 @@ fn event_type_str(et: &crate::types::EventType) -> String {
 
 fn print_event(ev: &StoredEvent) {
     let ts = &ev.created_at;
-    let short_ts = if ts.len() >= 19 { &ts[..19] } else { ts.as_str() };
+    let short_ts = if ts.len() >= 19 {
+        &ts[..19]
+    } else {
+        ts.as_str()
+    };
     let lvl = level_str(&ev.level);
     let level_colored = match lvl {
         "error" => lvl.red().to_string(),
@@ -123,7 +133,11 @@ fn print_event(ev: &StoredEvent) {
         .data
         .as_ref()
         .map(|d| {
-            let preview = if d.len() > 60 { format!("{}...", &d[..60]) } else { d.clone() };
+            let preview = if d.len() > 60 {
+                format!("{}...", &d[..60])
+            } else {
+                d.clone()
+            };
             format!(" {}", preview)
         })
         .unwrap_or_default();

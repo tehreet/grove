@@ -9,9 +9,7 @@ use ratatui::{
 };
 
 use crate::tui::app::{App, Focus};
-use crate::tui::theme::{
-    focused_block, unfocused_block, ACCENT_ORANGE, BRAND_PRIMARY, MUTED_GRAY,
-};
+use crate::tui::theme::{focused_block, unfocused_block, ACCENT_ORANGE, BRAND_PRIMARY, MUTED_GRAY};
 
 pub fn render(f: &mut Frame, app: &App, area: Rect) {
     let focused = app.focus == Focus::Mail;
@@ -44,7 +42,12 @@ pub fn render(f: &mut Frame, app: &App, area: Rect) {
         .iter()
         .map(|msg| {
             let unread_dot = if !msg.read {
-                Span::styled("● ", Style::default().fg(ACCENT_ORANGE).add_modifier(Modifier::BOLD))
+                Span::styled(
+                    "● ",
+                    Style::default()
+                        .fg(ACCENT_ORANGE)
+                        .add_modifier(Modifier::BOLD),
+                )
             } else {
                 Span::styled("  ", Style::default())
             };
@@ -56,15 +59,9 @@ pub fn render(f: &mut Frame, app: &App, area: Rect) {
 
             let line = Line::from(vec![
                 unread_dot,
-                Span::styled(
-                    from_to,
-                    Style::default().fg(BRAND_PRIMARY),
-                ),
+                Span::styled(from_to, Style::default().fg(BRAND_PRIMARY)),
                 Span::styled(subject, Style::default()),
-                Span::styled(
-                    format!(" {}", rel_time),
-                    Style::default().fg(MUTED_GRAY),
-                ),
+                Span::styled(format!(" {}", rel_time), Style::default().fg(MUTED_GRAY)),
             ]);
 
             ListItem::new(line)
@@ -72,9 +69,10 @@ pub fn render(f: &mut Frame, app: &App, area: Rect) {
         .collect();
 
     let list = if items.is_empty() {
-        List::new(vec![ListItem::new(
-            Span::styled("  no mail", Style::default().fg(MUTED_GRAY)),
-        )])
+        List::new(vec![ListItem::new(Span::styled(
+            "  no mail",
+            Style::default().fg(MUTED_GRAY),
+        ))])
         .block(block)
     } else {
         List::new(items).block(block)

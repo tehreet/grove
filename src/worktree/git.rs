@@ -55,11 +55,7 @@ pub fn create_worktree(
 
 /// Remove a git worktree. With force=true, uses --force flag.
 /// Runs: git worktree remove [--force] <worktree_path>
-pub fn remove_worktree(
-    repo_root: &Path,
-    worktree_path: &Path,
-    force: bool,
-) -> Result<(), String> {
+pub fn remove_worktree(repo_root: &Path, worktree_path: &Path, force: bool) -> Result<(), String> {
     let wt_path = worktree_path
         .to_str()
         .ok_or_else(|| "Invalid worktree path".to_string())?;
@@ -86,10 +82,7 @@ fn parse_worktree_output(output: &str) -> Vec<WorktreeEntry> {
         } else if let Some(rest) = line.strip_prefix("HEAD ") {
             head = rest.to_string();
         } else if let Some(rest) = line.strip_prefix("branch ") {
-            branch = rest
-                .strip_prefix("refs/heads/")
-                .unwrap_or(rest)
-                .to_string();
+            branch = rest.strip_prefix("refs/heads/").unwrap_or(rest).to_string();
         } else if line.is_empty() && !path.is_empty() {
             entries.push(WorktreeEntry {
                 path: path.clone(),
@@ -103,11 +96,7 @@ fn parse_worktree_output(output: &str) -> Vec<WorktreeEntry> {
     }
     // Handle last block if not terminated by blank line
     if !path.is_empty() {
-        entries.push(WorktreeEntry {
-            path,
-            branch,
-            head,
-        });
+        entries.push(WorktreeEntry { path, branch, head });
     }
     entries
 }
@@ -183,9 +172,6 @@ branch refs/heads/feature/foo
         let result = list_worktrees(Path::new("."));
         assert!(result.is_ok(), "list_worktrees failed: {:?}", result);
         let entries = result.unwrap();
-        assert!(
-            !entries.is_empty(),
-            "Expected at least one worktree entry"
-        );
+        assert!(!entries.is_empty(), "Expected at least one worktree entry");
     }
 }

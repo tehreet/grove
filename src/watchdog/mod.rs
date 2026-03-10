@@ -33,7 +33,6 @@ pub fn is_pid_alive(pid: i64) -> bool {
     std::fs::metadata(format!("/proc/{pid}")).is_ok()
 }
 
-
 /// Determine the health status of an agent session.
 ///
 /// An agent is considered:
@@ -76,7 +75,12 @@ pub fn check_health(
 /// Send a nudge to a stalled agent via `grove nudge`.
 pub fn nudge_agent(agent_name: &str, project_root: &Path) -> Result<(), String> {
     let status = Command::new("grove")
-        .args(["nudge", agent_name, "--message", "Watchdog: you appear stalled. Please check your mail and continue working."])
+        .args([
+            "nudge",
+            agent_name,
+            "--message",
+            "Watchdog: you appear stalled. Please check your mail and continue working.",
+        ])
         .current_dir(project_root)
         .status()
         .map_err(|e| format!("Failed to run grove nudge: {e}"))?;
@@ -105,8 +109,6 @@ pub fn kill_agent(
                 .output();
         }
     }
-
-
 
     // Remove worktree if it exists
     if !session.worktree_path.is_empty() {
@@ -268,7 +270,10 @@ mod tests {
         let very_old = (now - chrono::Duration::seconds(700)).to_rfc3339();
         let session = make_session("agent-c", &very_old);
         let now_ms = now.timestamp_millis() as u64;
-        assert_eq!(check_health(&session, &config, now_ms), HealthStatus::Zombie);
+        assert_eq!(
+            check_health(&session, &config, now_ms),
+            HealthStatus::Zombie
+        );
     }
 
     #[test]
@@ -280,6 +285,4 @@ mod tests {
     fn test_is_pid_alive_nonexistent() {
         assert!(!is_pid_alive(999_999_999));
     }
-
-    
-    }
+}

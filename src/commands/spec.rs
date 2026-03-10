@@ -25,8 +25,7 @@ pub fn write_spec(
     agent: Option<&str>,
 ) -> Result<String, String> {
     let specs_dir = project_root.join(".overstory").join("specs");
-    fs::create_dir_all(&specs_dir)
-        .map_err(|e| format!("Failed to create specs directory: {e}"))?;
+    fs::create_dir_all(&specs_dir).map_err(|e| format!("Failed to create specs directory: {e}"))?;
 
     let mut content = String::new();
     if let Some(agent_name) = agent {
@@ -38,8 +37,7 @@ pub fn write_spec(
     }
 
     let spec_path = specs_dir.join(format!("{task_id}.md"));
-    fs::write(&spec_path, &content)
-        .map_err(|e| format!("Failed to write spec file: {e}"))?;
+    fs::write(&spec_path, &content).map_err(|e| format!("Failed to write spec file: {e}"))?;
 
     Ok(spec_path.to_string_lossy().into_owned())
 }
@@ -69,9 +67,7 @@ pub fn execute_write(
     project_override: Option<&Path>,
 ) -> Result<(), String> {
     if task_id.trim().is_empty() {
-        return Err(
-            "Task ID is required: grove spec write <task-id> --body <content>".to_string(),
-        );
+        return Err("Task ID is required: grove spec write <task-id> --body <content>".to_string());
     }
 
     // Resolve body from --body, --file, or stdin
@@ -81,9 +77,7 @@ pub fn execute_write(
         fs::read_to_string(f)
             .map_err(|e| format!("Failed to read spec file {}: {e}", f.display()))?
     } else {
-        return Err(
-            "Spec body is required: use --body <content> or --file <path>".to_string(),
-        );
+        return Err("Spec body is required: use --body <content> or --file <path>".to_string());
     };
 
     if content.trim().is_empty() {
@@ -91,8 +85,7 @@ pub fn execute_write(
     }
 
     let cwd = std::env::current_dir().map_err(|e| e.to_string())?;
-    let project_root =
-        resolve_project_root(&cwd, project_override).map_err(|e| e.to_string())?;
+    let project_root = resolve_project_root(&cwd, project_override).map_err(|e| e.to_string())?;
 
     let spec_path = write_spec(&project_root, task_id, &content, agent.as_deref())?;
 
@@ -177,7 +170,14 @@ mod tests {
 
     #[test]
     fn test_execute_write_rejects_empty_body() {
-        let result = execute_write("grove-006", Some("   ".to_string()), None, None, false, None);
+        let result = execute_write(
+            "grove-006",
+            Some("   ".to_string()),
+            None,
+            None,
+            false,
+            None,
+        );
         assert!(result.is_err());
         assert!(result.unwrap_err().contains("cannot be empty"));
     }

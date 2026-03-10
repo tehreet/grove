@@ -1,14 +1,14 @@
 //! TUI view modules.
 
-pub mod cost_analytics;
-pub mod timeline;
 pub mod agent_detail;
+pub mod cost_analytics;
 pub mod event_log;
 pub mod help;
 pub mod mail_reader;
 pub mod overview;
 pub mod split_terminal;
 pub mod terminal;
+pub mod timeline;
 
 use ratatui::Frame;
 

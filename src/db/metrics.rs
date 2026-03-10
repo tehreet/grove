@@ -142,7 +142,8 @@ impl MetricsStore {
         );
         let mut stmt = self.conn.prepare(&sql)?;
         let rows = stmt.query_map([], row_to_session_metrics)?;
-        rows.collect::<rusqlite::Result<Vec<_>>>().map_err(GroveError::from)
+        rows.collect::<rusqlite::Result<Vec<_>>>()
+            .map_err(GroveError::from)
     }
 
     pub fn get_sessions_by_agent(&self, agent_name: &str) -> Result<Vec<SessionMetrics>> {
@@ -154,7 +155,8 @@ impl MetricsStore {
              FROM sessions WHERE agent_name = ?1 ORDER BY started_at DESC",
         )?;
         let rows = stmt.query_map(params![agent_name], row_to_session_metrics)?;
-        rows.collect::<rusqlite::Result<Vec<_>>>().map_err(GroveError::from)
+        rows.collect::<rusqlite::Result<Vec<_>>>()
+            .map_err(GroveError::from)
     }
 
     pub fn get_sessions_by_run(&self, run_id: &str) -> Result<Vec<SessionMetrics>> {
@@ -166,7 +168,8 @@ impl MetricsStore {
              FROM sessions WHERE run_id = ?1 ORDER BY started_at DESC",
         )?;
         let rows = stmt.query_map(params![run_id], row_to_session_metrics)?;
-        rows.collect::<rusqlite::Result<Vec<_>>>().map_err(GroveError::from)
+        rows.collect::<rusqlite::Result<Vec<_>>>()
+            .map_err(GroveError::from)
     }
 
     pub fn get_sessions_by_task(&self, task_id: &str) -> Result<Vec<SessionMetrics>> {
@@ -178,7 +181,8 @@ impl MetricsStore {
              FROM sessions WHERE task_id = ?1 ORDER BY started_at DESC",
         )?;
         let rows = stmt.query_map(params![task_id], row_to_session_metrics)?;
-        rows.collect::<rusqlite::Result<Vec<_>>>().map_err(GroveError::from)
+        rows.collect::<rusqlite::Result<Vec<_>>>()
+            .map_err(GroveError::from)
     }
 
     pub fn get_average_duration(&self, capability: Option<&str>) -> Result<f64> {
@@ -199,7 +203,9 @@ impl MetricsStore {
     }
 
     pub fn count_sessions(&self) -> Result<i64> {
-        let n = self.conn.query_row("SELECT COUNT(*) FROM sessions", [], |r| r.get(0))?;
+        let n = self
+            .conn
+            .query_row("SELECT COUNT(*) FROM sessions", [], |r| r.get(0))?;
         Ok(n)
     }
 
@@ -207,10 +213,8 @@ impl MetricsStore {
         let n = if opts.all {
             self.conn.execute("DELETE FROM sessions", [])?
         } else if let Some(ref agent) = opts.agent {
-            self.conn.execute(
-                "DELETE FROM sessions WHERE agent_name = ?1",
-                params![agent],
-            )?
+            self.conn
+                .execute("DELETE FROM sessions WHERE agent_name = ?1", params![agent])?
         } else {
             0
         };
@@ -261,7 +265,8 @@ impl MetricsStore {
         };
         let mut stmt = self.conn.prepare(&sql)?;
         let rows = stmt.query_map([], row_to_snapshot)?;
-        rows.collect::<rusqlite::Result<Vec<_>>>().map_err(GroveError::from)
+        rows.collect::<rusqlite::Result<Vec<_>>>()
+            .map_err(GroveError::from)
     }
 
     pub fn get_latest_snapshot_time(&self, agent_name: &str) -> Result<Option<String>> {
@@ -351,7 +356,9 @@ mod tests {
     #[test]
     fn test_record_and_get() {
         let store = MetricsStore::new(":memory:").unwrap();
-        store.record_session(&make_metrics("agent-a", "task-1")).unwrap();
+        store
+            .record_session(&make_metrics("agent-a", "task-1"))
+            .unwrap();
         let sessions = store.get_sessions_by_agent("agent-a").unwrap();
         assert_eq!(sessions.len(), 1);
         assert_eq!(sessions[0].task_id, "task-1");
@@ -360,7 +367,9 @@ mod tests {
     #[test]
     fn test_record_upsert() {
         let store = MetricsStore::new(":memory:").unwrap();
-        store.record_session(&make_metrics("agent-a", "task-1")).unwrap();
+        store
+            .record_session(&make_metrics("agent-a", "task-1"))
+            .unwrap();
         let mut updated = make_metrics("agent-a", "task-1");
         updated.duration_ms = 9999;
         store.record_session(&updated).unwrap();
@@ -419,7 +428,12 @@ mod tests {
     fn test_purge_all() {
         let store = MetricsStore::new(":memory:").unwrap();
         store.record_session(&make_metrics("a", "t1")).unwrap();
-        let deleted = store.purge(PurgeMetricsOpts { all: true, ..Default::default() }).unwrap();
+        let deleted = store
+            .purge(PurgeMetricsOpts {
+                all: true,
+                ..Default::default()
+            })
+            .unwrap();
         assert_eq!(deleted, 1);
         assert_eq!(store.count_sessions().unwrap(), 0);
     }
@@ -448,7 +462,12 @@ mod tests {
     fn test_purge_snapshots() {
         let store = MetricsStore::new(":memory:").unwrap();
         store.record_snapshot(&make_snapshot("agent-a")).unwrap();
-        let deleted = store.purge_snapshots(PurgeSnapshotOpts { all: true, ..Default::default() }).unwrap();
+        let deleted = store
+            .purge_snapshots(PurgeSnapshotOpts {
+                all: true,
+                ..Default::default()
+            })
+            .unwrap();
         assert_eq!(deleted, 1);
     }
 }

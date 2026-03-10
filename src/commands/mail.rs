@@ -4,7 +4,9 @@ use crate::config::resolve_project_root;
 use crate::db::mail::MailStore;
 use crate::json::{json_error, json_output};
 use crate::logging::{format_relative_time, muted, pad_visible, render_header};
-use crate::types::{InsertMailMessage, MailFilters, MailMessage, MailMessageType, MailPriority, PurgeMailOpts};
+use crate::types::{
+    InsertMailMessage, MailFilters, MailMessage, MailMessageType, MailPriority, PurgeMailOpts,
+};
 
 // ---------------------------------------------------------------------------
 // Database path helper
@@ -498,9 +500,18 @@ mod tests {
 
     #[test]
     fn test_parse_message_type_valid() {
-        assert_eq!(parse_message_type("status").unwrap(), MailMessageType::Status);
-        assert_eq!(parse_message_type("worker_done").unwrap(), MailMessageType::WorkerDone);
-        assert_eq!(parse_message_type("dispatch").unwrap(), MailMessageType::Dispatch);
+        assert_eq!(
+            parse_message_type("status").unwrap(),
+            MailMessageType::Status
+        );
+        assert_eq!(
+            parse_message_type("worker_done").unwrap(),
+            MailMessageType::WorkerDone
+        );
+        assert_eq!(
+            parse_message_type("dispatch").unwrap(),
+            MailMessageType::Dispatch
+        );
     }
 
     #[test]
@@ -545,7 +556,10 @@ mod tests {
         let store = MailStore::new(":memory:").unwrap();
         let original = store.insert(&make_msg("alice", "bob", "hello")).unwrap();
         // Simulate reply logic
-        let thread_id = original.thread_id.clone().unwrap_or_else(|| original.id.clone());
+        let thread_id = original
+            .thread_id
+            .clone()
+            .unwrap_or_else(|| original.id.clone());
         let reply = InsertMailMessage {
             id: None,
             from_agent: "bob".to_string(),

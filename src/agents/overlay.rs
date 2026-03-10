@@ -25,10 +25,7 @@ pub fn render_overlay(template: &str, config: &OverlayConfig) -> String {
     out = out.replace("{{SPEC_PATH}}", spec_path);
 
     // Parent agent
-    let parent_agent = config
-        .parent_agent
-        .as_deref()
-        .unwrap_or("coordinator");
+    let parent_agent = config.parent_agent.as_deref().unwrap_or("coordinator");
     out = out.replace("{{PARENT_AGENT}}", parent_agent);
 
     // File scope
@@ -107,14 +104,8 @@ pub fn render_overlay(template: &str, config: &OverlayConfig) -> String {
 }
 
 fn render_quality_gates(config: &OverlayConfig) -> String {
-    let tracker = config
-        .tracker_cli
-        .as_deref()
-        .unwrap_or("sd");
-    let _tracker_name = config
-        .tracker_name
-        .as_deref()
-        .unwrap_or("seeds");
+    let tracker = config.tracker_cli.as_deref().unwrap_or("sd");
+    let _tracker_name = config.tracker_name.as_deref().unwrap_or("seeds");
 
     let mut steps: Vec<String> = Vec::new();
 
@@ -166,7 +157,10 @@ fn render_quality_gates(config: &OverlayConfig) -> String {
         ));
     }
 
-    format!("## Quality Gates\n\nBefore reporting completion, you MUST pass all quality gates:\n\n{}", steps.join("\n"))
+    format!(
+        "## Quality Gates\n\nBefore reporting completion, you MUST pass all quality gates:\n\n{}",
+        steps.join("\n")
+    )
 }
 
 fn render_dispatch_overrides(config: &OverlayConfig) -> String {
@@ -221,11 +215,18 @@ const EMBEDDED_OVERLAY_TEMPLATE: &str = include_str!("../../templates/overlay.md
 
 /// Load the overlay template from disk and render it.
 /// Falls back to the embedded template if the on-disk file doesn't exist.
-pub fn render_overlay_from_template(project_root: &Path, config: &OverlayConfig) -> Result<String, String> {
+pub fn render_overlay_from_template(
+    project_root: &Path,
+    config: &OverlayConfig,
+) -> Result<String, String> {
     let template_path = project_root.join("templates/overlay.md.tmpl");
     let template = if template_path.exists() {
-        fs::read_to_string(&template_path)
-            .map_err(|e| format!("Failed to read overlay template at {}: {e}", template_path.display()))?
+        fs::read_to_string(&template_path).map_err(|e| {
+            format!(
+                "Failed to read overlay template at {}: {e}",
+                template_path.display()
+            )
+        })?
     } else {
         EMBEDDED_OVERLAY_TEMPLATE.to_string()
     };

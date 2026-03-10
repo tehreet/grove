@@ -74,7 +74,11 @@ fn render_cost_bars(f: &mut Frame, app: &App, area: Rect) {
     };
     agent_costs.truncate(10); // max 10 agents shown
 
-    let max_cost = agent_costs.first().map(|(_, c)| *c).unwrap_or(1.0).max(0.001);
+    let max_cost = agent_costs
+        .first()
+        .map(|(_, c)| *c)
+        .unwrap_or(1.0)
+        .max(0.001);
     let bar_max: usize = area.width.saturating_sub(24) as usize;
 
     let mut lines: Vec<Line> = vec![Line::from(Span::styled(
@@ -91,15 +95,9 @@ fn render_cost_bars(f: &mut Frame, app: &App, area: Rect) {
             Span::raw("  "),
             Span::styled(bar, Style::default().fg(ACCENT_GREEN)),
             Span::raw(" "),
-            Span::styled(
-                truncate(agent, 14),
-                Style::default().fg(BRAND_PRIMARY),
-            ),
+            Span::styled(truncate(agent, 14), Style::default().fg(BRAND_PRIMARY)),
             Span::raw("  "),
-            Span::styled(
-                format!("${:.2}", cost),
-                Style::default().fg(ACCENT_ORANGE),
-            ),
+            Span::styled(format!("${:.2}", cost), Style::default().fg(ACCENT_ORANGE)),
         ]));
     }
 
@@ -212,7 +210,10 @@ fn render_cost_table(f: &mut Frame, app: &App, area: Rect) {
     let rows: Vec<Row> = rows_data
         .iter()
         .map(|snap| {
-            let cap = cap_map.get(snap.agent_name.as_str()).copied().unwrap_or("-");
+            let cap = cap_map
+                .get(snap.agent_name.as_str())
+                .copied()
+                .unwrap_or("-");
             Row::new(vec![
                 Cell::from(truncate(&snap.agent_name, 16))
                     .style(Style::default().fg(BRAND_PRIMARY)),
@@ -225,11 +226,8 @@ fn render_cost_table(f: &mut Frame, app: &App, area: Rect) {
                     snap.cache_read_tokens + snap.cache_creation_tokens,
                 ))
                 .style(Style::default().fg(Color::White)),
-                Cell::from(format!(
-                    "${:.4}",
-                    snap.estimated_cost_usd.unwrap_or(0.0)
-                ))
-                .style(Style::default().fg(ACCENT_ORANGE)),
+                Cell::from(format!("${:.4}", snap.estimated_cost_usd.unwrap_or(0.0)))
+                    .style(Style::default().fg(ACCENT_ORANGE)),
             ])
         })
         .collect();

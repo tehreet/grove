@@ -108,14 +108,13 @@ pub fn execute_start(
 
         // Load config for exit triggers
         let config = load_config(&root, project_override).unwrap_or_default();
-        let exit_triggers = config
-            .coordinator
-            .map(|c| c.exit_triggers)
-            .unwrap_or(crate::types::CoordinatorExitTriggers {
+        let exit_triggers = config.coordinator.map(|c| c.exit_triggers).unwrap_or(
+            crate::types::CoordinatorExitTriggers {
                 all_agents_done: false,
                 task_tracker_empty: false,
                 on_shutdown_signal: true,
-            });
+            },
+        );
 
         let sessions_db_path = sessions_db.clone();
         let ctx = LoopContext {
@@ -447,7 +446,10 @@ pub fn execute_status(json: bool, project_override: Option<&Path>) -> Result<(),
             println!("  State:       {state}");
         }
         if let Some(p) = pid {
-            println!("  PID:         {p} ({})", if alive { "alive" } else { "dead" });
+            println!(
+                "  PID:         {p} ({})",
+                if alive { "alive" } else { "dead" }
+            );
         }
         if let Some(ref s) = session {
             println!("  Started:     {}", s.started_at);
@@ -505,10 +507,7 @@ pub fn execute_logs(
         if !tail.is_empty() {
             println!("{tail}");
         }
-        log_path
-            .metadata()
-            .map(|m| m.len())
-            .unwrap_or(0)
+        log_path.metadata().map(|m| m.len()).unwrap_or(0)
     };
 
     loop {
@@ -595,6 +594,88 @@ pub fn execute_send(
     Ok(())
 }
 
+/// `grove coordinator ask` — send a message to the coordinator and wait for a reply.
+pub fn execute_ask(
+    body: &str,
+    from: &str,
+    timeout_secs: u64,
+    json: bool,
+    project_override: Option<&Path>,
+) -> Result<(), String> {
+    let cwd = std::env::current_dir().map_err(|e| e.to_string())?;
+    let root = resolve_project_root(&cwd, project_override).map_err(|e| e.to_string())?;
+    let root_str = root.to_string_lossy().to_string();
+    let mail_db = format!("{root_str}/.overstory/mail.db");
+
+    let store = MailStore::new(&mail_db).map_err(|e| e.to_string())?;
+    let thread_id = uuid::Uuid::new_v4().to_string();
+
+    store
+        .insert(&InsertMailMessage {
+            id: None,
+            from_agent: from.to_string(),
+            to_agent: COORDINATOR_AGENT.to_string(),
+            subject: "ask".to_string(),
+            body: body.to_string(),
+            message_type: MailMessageType::Status,
+            priority: MailPriority::High,
+            thread_id: Some(thread_id.clone()),
+            payload: None,
+        })
+        .map_err(|e| e.to_string())?;
+
+    let deadline = Instant::now() + Duration::from_secs(timeout_secs);
+    let poll_interval = Duration::from_millis(500);
+
+    loop {
+        if Instant::now() >= deadline {
+            let msg = format!("Timeout: no reply from coordinator after {timeout_secs}s");
+            if json {
+                println!("{}", json_error("coordinator ask", &msg));
+            } else {
+                eprintln!("{msg}");
+            }
+            return Err(msg);
+        }
+
+        let unread = store.get_unread(from).unwrap_or_default();
+        for mail in &unread {
+            if mail.thread_id.as_deref() == Some(thread_id.as_str()) {
+                let _ = store.mark_read(&mail.id);
+
+                if json {
+                    #[derive(Serialize)]
+                    #[serde(rename_all = "camelCase")]
+                    struct Output {
+                        replied: bool,
+                        body: String,
+                        from: String,
+                        thread_id: String,
+                    }
+
+                    println!(
+                        "{}",
+                        json_output(
+                            "coordinator ask",
+                            &Output {
+                                replied: true,
+                                body: mail.body.clone(),
+                                from: mail.from.clone(),
+                                thread_id: thread_id.clone(),
+                            }
+                        )
+                    );
+                } else {
+                    println!("{}", mail.body);
+                }
+                return Ok(());
+            }
+        }
+
+        thread::sleep(poll_interval);
+    }
+}
+
 // ---------------------------------------------------------------------------
 // Tests
 // ---------------------------------------------------------------------------
@@ -654,6 +735,16 @@ mod tests {
             Some(tmpdir.path()),
         );
         assert!(result.is_ok());
+    }
+
+    #[test]
+    fn test_ask_times_out_without_reply() {
+        let tmpdir = tempfile::tempdir().unwrap();
+        let overstory_dir = tmpdir.path().join(".overstory");
+        std::fs::create_dir_all(&overstory_dir).unwrap();
+
+        let result = execute_ask("status?", "operator", 0, false, Some(tmpdir.path()));
+        assert!(result.is_err());
     }
 
     #[test]

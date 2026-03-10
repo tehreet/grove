@@ -87,7 +87,9 @@ pub fn build_dispatch_body(
 ) -> String {
     let spec_line = spec_path
         .map(|p| format!("Spec file: {p}"))
-        .unwrap_or_else(|| "No spec file provided. Check your overlay for task details.".to_string());
+        .unwrap_or_else(|| {
+            "No spec file provided. Check your overlay for task details.".to_string()
+        });
     format!(
         "You have been assigned task {task_id} as a {capability} agent. {spec_line} Read your overlay at {instruction_path} and begin immediately."
     )
@@ -226,9 +228,8 @@ pub fn execute(opts: SlingOptions<'_>) -> Result<(), String> {
 
     // Load manifest + validate capability BEFORE hierarchy check so unknown
     // capability gives a clear error instead of a confusing hierarchy error.
-    let manifest =
-        load_manifest_from_project(&root, &config.agents.manifest_path)
-            .map_err(|e| e.to_string())?;
+    let manifest = load_manifest_from_project(&root, &config.agents.manifest_path)
+        .map_err(|e| e.to_string())?;
     let agent_def = manifest.agents.get(capability).ok_or_else(|| {
         format!(
             "Unknown capability \"{capability}\". Available: {}",
@@ -256,9 +257,7 @@ pub fn execute(opts: SlingOptions<'_>) -> Result<(), String> {
     } else {
         let new_id = format!(
             "run-{}",
-            chrono::Utc::now()
-                .to_rfc3339()
-                .replace([':', '.'], "-")
+            chrono::Utc::now().to_rfc3339().replace([':', '.'], "-")
         );
         let run_store = RunStore::new(&sessions_db_str).map_err(|e| e.to_string())?;
         run_store
@@ -353,9 +352,7 @@ pub fn execute(opts: SlingOptions<'_>) -> Result<(), String> {
 
     // Per-lead agent limit
     if let Some(parent) = opts.parent {
-        let max_per_lead = opts
-            .max_agents
-            .unwrap_or(config.agents.max_agents_per_lead);
+        let max_per_lead = opts.max_agents.unwrap_or(config.agents.max_agents_per_lead);
         if max_per_lead > 0 {
             let count = active_sessions
                 .iter()
@@ -497,12 +494,10 @@ fn do_spawn(ctx: DoSpawnContext<'_>) -> Result<(), String> {
         .root
         .join(&ctx.config.agents.base_dir)
         .join(&ctx.agent_def.file);
-    let base_definition = fs::read_to_string(&agent_def_path)
-        .unwrap_or_else(|_| format!("# {}\n", ctx.capability));
+    let base_definition =
+        fs::read_to_string(&agent_def_path).unwrap_or_else(|_| format!("# {}\n", ctx.capability));
 
-    let spec_path_str = ctx
-        .spec_path
-        .map(|p| p.to_string_lossy().to_string());
+    let spec_path_str = ctx.spec_path.map(|p| p.to_string_lossy().to_string());
 
     // Build overlay config
     let overlay_config = OverlayConfig {
@@ -614,21 +609,24 @@ fn do_spawn(ctx: DoSpawnContext<'_>) -> Result<(), String> {
     };
 
     // Create log dir for this agent session
-    let log_timestamp = chrono::Utc::now()
-        .to_rfc3339()
-        .replace([':', '.'], "-");
+    let log_timestamp = chrono::Utc::now().to_rfc3339().replace([':', '.'], "-");
     let agent_log_dir = ctx
         .overstory_dir
         .join("logs")
         .join(ctx.agent_name)
         .join(&log_timestamp);
-    fs::create_dir_all(&agent_log_dir)
-        .map_err(|e| format!("Failed to create log dir: {e}"))?;
+    fs::create_dir_all(&agent_log_dir).map_err(|e| format!("Failed to create log dir: {e}"))?;
 
     // Spawn the agent — always headless (direct child process, no tmux)
     let (pid, tmux_session, child_process) = spawn_headless(
-        ctx.agent_name, ctx.task_id, ctx.worktree_path, &agent_log_dir,
-        runtime.as_ref(), &resolved_model, ctx.parent_agent, ctx.depth,
+        ctx.agent_name,
+        ctx.task_id,
+        ctx.worktree_path,
+        &agent_log_dir,
+        runtime.as_ref(),
+        &resolved_model,
+        ctx.parent_agent,
+        ctx.depth,
     )?;
 
     // Record session in DB
@@ -663,7 +661,9 @@ fn do_spawn(ctx: DoSpawnContext<'_>) -> Result<(), String> {
     // Process death detection is handled by the watchdog (poll_once checks PIDs).
     // When the watchdog detects the PID is dead, it transitions to Completed.
     if child_process.is_some() {
-        let _ = ctx.session_store.update_state(ctx.agent_name, AgentState::Working);
+        let _ = ctx
+            .session_store
+            .update_state(ctx.agent_name, AgentState::Working);
         // Drop the child — it continues running as an orphaned process.
         // The watchdog monitors its PID via /proc/<pid>.
     }
@@ -763,7 +763,9 @@ fn spawn_headless(
         cmd.env(k, v);
     }
 
-    let mut child = cmd.spawn().map_err(|e| format!("Failed to spawn agent: {e}"))?;
+    let mut child = cmd
+        .spawn()
+        .map_err(|e| format!("Failed to spawn agent: {e}"))?;
     let pid = child.id() as i64;
 
     // Write beacon to stdin then signal EOF
@@ -783,7 +785,6 @@ fn spawn_headless(
 
     Ok((Some(pid), String::new(), Some(child)))
 }
-
 
 // ---------------------------------------------------------------------------
 // Tests
@@ -858,7 +859,12 @@ mod tests {
 
     #[test]
     fn test_build_dispatch_body_with_spec() {
-        let body = build_dispatch_body("task-001", "builder", Some("/specs/task.md"), ".claude/CLAUDE.md");
+        let body = build_dispatch_body(
+            "task-001",
+            "builder",
+            Some("/specs/task.md"),
+            ".claude/CLAUDE.md",
+        );
         assert!(body.contains("task-001"));
         assert!(body.contains("builder"));
         assert!(body.contains("/specs/task.md"));
@@ -872,7 +878,14 @@ mod tests {
 
     #[test]
     fn test_build_beacon_format() {
-        let beacon = build_beacon("agent-x", "builder", "task-001", Some("lead-a"), 2, ".claude/CLAUDE.md");
+        let beacon = build_beacon(
+            "agent-x",
+            "builder",
+            "task-001",
+            Some("lead-a"),
+            2,
+            ".claude/CLAUDE.md",
+        );
         assert!(beacon.contains("[OVERSTORY]"));
         assert!(beacon.contains("agent-x"));
         assert!(beacon.contains("builder"));

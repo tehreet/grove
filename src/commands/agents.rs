@@ -46,7 +46,10 @@ pub fn execute_discover(
         Ok(m) => m,
         Err(_) => {
             if json {
-                println!("{}", json_output("agents", &serde_json::json!({"agents": []})));
+                println!(
+                    "{}",
+                    json_output("agents", &serde_json::json!({"agents": []}))
+                );
             } else {
                 print_hint("No agent manifest found");
             }
@@ -86,7 +89,10 @@ pub fn execute_discover(
     entries.sort_by(|a, b| a.name.cmp(&b.name));
 
     if json {
-        println!("{}", json_output("agents", &serde_json::json!({"agents": entries})));
+        println!(
+            "{}",
+            json_output("agents", &serde_json::json!({"agents": entries}))
+        );
     } else {
         print_agents(&entries);
     }

@@ -4,7 +4,9 @@ use rusqlite::{params, Connection, OptionalExtension};
 
 use crate::db::connection::open_connection;
 use crate::errors::{GroveError, Result};
-use crate::types::{AgentSession, AgentState, InsertRun, ListRunsOpts, PurgeSessionOpts, Run, RunStatus};
+use crate::types::{
+    AgentSession, AgentState, InsertRun, ListRunsOpts, PurgeSessionOpts, Run, RunStatus,
+};
 
 const SESSIONS_SCHEMA: &str = "
 CREATE TABLE IF NOT EXISTS sessions (
@@ -160,7 +162,8 @@ impl SessionStore {
              FROM sessions WHERE state IN ('booting','working','stalled')",
         )?;
         let rows = stmt.query_map([], row_to_session)?;
-        rows.collect::<rusqlite::Result<Vec<_>>>().map_err(GroveError::from)
+        rows.collect::<rusqlite::Result<Vec<_>>>()
+            .map_err(GroveError::from)
     }
 
     pub fn get_all(&self) -> Result<Vec<AgentSession>> {
@@ -171,11 +174,14 @@ impl SessionStore {
              FROM sessions ORDER BY started_at DESC",
         )?;
         let rows = stmt.query_map([], row_to_session)?;
-        rows.collect::<rusqlite::Result<Vec<_>>>().map_err(GroveError::from)
+        rows.collect::<rusqlite::Result<Vec<_>>>()
+            .map_err(GroveError::from)
     }
 
     pub fn count(&self) -> Result<i64> {
-        let n = self.conn.query_row("SELECT COUNT(*) FROM sessions", [], |r| r.get(0))?;
+        let n = self
+            .conn
+            .query_row("SELECT COUNT(*) FROM sessions", [], |r| r.get(0))?;
         Ok(n)
     }
 
@@ -187,7 +193,8 @@ impl SessionStore {
              FROM sessions WHERE run_id = ?1",
         )?;
         let rows = stmt.query_map(params![run_id], row_to_session)?;
-        rows.collect::<rusqlite::Result<Vec<_>>>().map_err(GroveError::from)
+        rows.collect::<rusqlite::Result<Vec<_>>>()
+            .map_err(GroveError::from)
     }
 
     pub fn update_state(&self, agent_name: &str, state: AgentState) -> Result<()> {
@@ -240,15 +247,11 @@ impl SessionStore {
         let n = if opts.all {
             self.conn.execute("DELETE FROM sessions", [])?
         } else if let Some(agent) = &opts.agent {
-            self.conn.execute(
-                "DELETE FROM sessions WHERE agent_name = ?1",
-                params![agent],
-            )?
+            self.conn
+                .execute("DELETE FROM sessions WHERE agent_name = ?1", params![agent])?
         } else if let Some(state) = &opts.state {
-            self.conn.execute(
-                "DELETE FROM sessions WHERE state = ?1",
-                params![state],
-            )?
+            self.conn
+                .execute("DELETE FROM sessions WHERE state = ?1", params![state])?
         } else {
             0
         };
@@ -275,7 +278,12 @@ impl RunStore {
         self.conn.execute(
             "INSERT INTO runs (id, started_at, coordinator_session_id, status)
              VALUES (?1, ?2, ?3, ?4)",
-            params![run.id, run.started_at, run.coordinator_session_id, run.status],
+            params![
+                run.id,
+                run.started_at,
+                run.coordinator_session_id,
+                run.status
+            ],
         )?;
         Ok(())
     }
@@ -460,7 +468,9 @@ mod tests {
     fn test_update_escalation() {
         let store = SessionStore::new(":memory:").unwrap();
         store.upsert(&make_session("a1")).unwrap();
-        store.update_escalation("a1", 2, Some("2024-01-01T00:00:00Z")).unwrap();
+        store
+            .update_escalation("a1", 2, Some("2024-01-01T00:00:00Z"))
+            .unwrap();
         let s = store.get_by_name("a1").unwrap().unwrap();
         assert_eq!(s.escalation_level, 2);
         assert_eq!(s.stalled_since, Some("2024-01-01T00:00:00Z".to_string()));
@@ -479,7 +489,12 @@ mod tests {
         let store = SessionStore::new(":memory:").unwrap();
         store.upsert(&make_session("a1")).unwrap();
         store.upsert(&make_session("a2")).unwrap();
-        let deleted = store.purge(PurgeSessionOpts { all: true, ..Default::default() }).unwrap();
+        let deleted = store
+            .purge(PurgeSessionOpts {
+                all: true,
+                ..Default::default()
+            })
+            .unwrap();
         assert_eq!(deleted, 2);
         assert_eq!(store.count().unwrap(), 0);
     }
@@ -491,10 +506,12 @@ mod tests {
         let mut s2 = make_session("a2");
         s2.state = AgentState::Zombie;
         store.upsert(&s2).unwrap();
-        let deleted = store.purge(PurgeSessionOpts {
-            state: Some(AgentState::Zombie),
-            ..Default::default()
-        }).unwrap();
+        let deleted = store
+            .purge(PurgeSessionOpts {
+                state: Some(AgentState::Zombie),
+                ..Default::default()
+            })
+            .unwrap();
         assert_eq!(deleted, 1);
         assert_eq!(store.count().unwrap(), 1);
     }
@@ -569,7 +586,12 @@ mod tests {
         let store = RunStore::new(":memory:").unwrap();
         store.create_run(&make_run("run-1")).unwrap();
         store.create_run(&make_run("run-2")).unwrap();
-        let runs = store.list_runs(Some(ListRunsOpts { limit: Some(1), ..Default::default() })).unwrap();
+        let runs = store
+            .list_runs(Some(ListRunsOpts {
+                limit: Some(1),
+                ..Default::default()
+            }))
+            .unwrap();
         assert_eq!(runs.len(), 1);
     }
 }

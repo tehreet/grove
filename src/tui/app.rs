@@ -1015,12 +1015,10 @@ impl App {
 // Helpers
 // ---------------------------------------------------------------------------
 
-/// Capture agent output from log files.
-///
-/// Fallback chain:
-/// 1. Read stdout.log from .overstory/logs/<agent>/<timestamp>/ (most recent subdir)
-/// 2. If stdout.log is absent or empty, fall back to stderr.log (Codex writes to stderr)
-/// 3. If neither exists, return a "no output available" message
+/// Capture agent output with fallback chain:
+/// 1. Try tmux capture-pane (backward compat with overstory agents)
+/// 2. If tmux fails or no session, read from .overstory/logs/<agent_name>/ (headless agents)
+/// 3. If no log file, show a "no output available" message
 pub fn capture_agent_output(
     _session_name: &str,
     agent_name: &str,

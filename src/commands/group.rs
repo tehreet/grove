@@ -95,11 +95,7 @@ fn print_group_progress(progress: &TaskGroupProgress) {
     );
     println!(
         "  Issues: {} total | {} completed | {} in_progress | {} blocked | {} open",
-        progress.total,
-        progress.completed,
-        progress.in_progress,
-        progress.blocked,
-        progress.open,
+        progress.total, progress.completed, progress.in_progress, progress.blocked, progress.open,
     );
     if progress.group.status == TaskGroupStatus::Completed {
         if let Some(ref at) = progress.group.completed_at {
@@ -155,7 +151,11 @@ pub fn execute_create(
         if group.member_issue_ids.is_empty() {
             println!("  Members: (none)");
         } else {
-            let members: Vec<String> = group.member_issue_ids.iter().map(|id| accent(id).to_string()).collect();
+            let members: Vec<String> = group
+                .member_issue_ids
+                .iter()
+                .map(|id| accent(id).to_string())
+                .collect();
             println!("  Members: {}", members.join(", "));
         }
     }
@@ -178,8 +178,8 @@ pub fn execute_status(
     let groups = load_groups(root)?;
 
     if let Some(ref gid) = group_id {
-        let idx = find_group_index(&groups, gid)
-            .ok_or_else(|| format!("Group \"{gid}\" not found"))?;
+        let idx =
+            find_group_index(&groups, gid).ok_or_else(|| format!("Group \"{gid}\" not found"))?;
         let group = &groups[idx];
 
         let progress = group_progress(group);
@@ -189,19 +189,32 @@ pub fn execute_status(
             print_group_progress(&progress);
         }
     } else {
-        let active: Vec<&TaskGroup> = groups.iter().filter(|g| g.status == TaskGroupStatus::Active).collect();
+        let active: Vec<&TaskGroup> = groups
+            .iter()
+            .filter(|g| g.status == TaskGroupStatus::Active)
+            .collect();
         if active.is_empty() {
             if json {
-                println!("{}", json_output("group status", &serde_json::json!({"groups": []})));
+                println!(
+                    "{}",
+                    json_output("group status", &serde_json::json!({"groups": []}))
+                );
             } else {
                 print_hint("No active groups");
             }
             return Ok(());
         }
 
-        let progress_list: Vec<TaskGroupProgress> = active.iter().map(|g| group_progress(g)).collect();
+        let progress_list: Vec<TaskGroupProgress> =
+            active.iter().map(|g| group_progress(g)).collect();
         if json {
-            println!("{}", json_output("group status", &serde_json::json!({"groups": progress_list})));
+            println!(
+                "{}",
+                json_output(
+                    "group status",
+                    &serde_json::json!({"groups": progress_list})
+                )
+            );
         } else {
             for progress in &progress_list {
                 print_group_progress(progress);
@@ -239,7 +252,9 @@ pub fn execute_add(
     // Check for existing members
     for id in &ids {
         if group.member_issue_ids.contains(id) {
-            return Err(format!("Issue \"{id}\" is already a member of group \"{group_id}\""));
+            return Err(format!(
+                "Issue \"{id}\" is already a member of group \"{group_id}\""
+            ));
         }
     }
 
@@ -258,7 +273,11 @@ pub fn execute_add(
         println!("{}", json_output("group add", &group));
     } else {
         print_success("Added to group", Some(&group.name));
-        let members: Vec<String> = group.member_issue_ids.iter().map(|id| accent(id).to_string()).collect();
+        let members: Vec<String> = group
+            .member_issue_ids
+            .iter()
+            .map(|id| accent(id).to_string())
+            .collect();
         println!("  Members: {}", members.join(", "));
     }
 
@@ -291,7 +310,9 @@ pub fn execute_remove(
     // Validate all are members
     for id in &ids {
         if !group.member_issue_ids.contains(id) {
-            return Err(format!("Issue \"{id}\" is not a member of group \"{group_id}\""));
+            return Err(format!(
+                "Issue \"{id}\" is not a member of group \"{group_id}\""
+            ));
         }
     }
 
@@ -314,7 +335,11 @@ pub fn execute_remove(
         println!("{}", json_output("group remove", &group));
     } else {
         print_success("Removed from group", Some(&group.name));
-        let members: Vec<String> = group.member_issue_ids.iter().map(|id| accent(id).to_string()).collect();
+        let members: Vec<String> = group
+            .member_issue_ids
+            .iter()
+            .map(|id| accent(id).to_string())
+            .collect();
         println!("  Members: {}", members.join(", "));
     }
 
@@ -386,10 +411,17 @@ pub fn execute_list(json: bool, project_override: Option<&Path>) -> Result<(), S
     }
 
     if json {
-        println!("{}", json_output("group list", &serde_json::json!({"groups": groups})));
+        println!(
+            "{}",
+            json_output("group list", &serde_json::json!({"groups": groups}))
+        );
     } else {
         for group in &groups {
-            let status = if group.status == TaskGroupStatus::Completed { "[completed]" } else { "[active]" };
+            let status = if group.status == TaskGroupStatus::Completed {
+                "[completed]"
+            } else {
+                "[active]"
+            };
             println!(
                 "{} {} \"{}\" ({} issues)",
                 accent(&group.id),
@@ -413,16 +445,14 @@ mod tests {
 
     #[test]
     fn test_find_group_index_by_name() {
-        let groups = vec![
-            TaskGroup {
-                id: "group-0a43bfbf".to_string(),
-                name: "mygroup".to_string(),
-                member_issue_ids: vec![],
-                status: TaskGroupStatus::Active,
-                created_at: "2024-01-01T00:00:00Z".to_string(),
-                completed_at: None,
-            },
-        ];
+        let groups = vec![TaskGroup {
+            id: "group-0a43bfbf".to_string(),
+            name: "mygroup".to_string(),
+            member_issue_ids: vec![],
+            status: TaskGroupStatus::Active,
+            created_at: "2024-01-01T00:00:00Z".to_string(),
+            completed_at: None,
+        }];
         // lookup by name
         assert_eq!(find_group_index(&groups, "mygroup"), Some(0));
         // lookup by id
@@ -462,7 +492,10 @@ mod tests {
         let result = execute_create("mygroup", vec![], false, Some(Path::new("/tmp")));
         // May fail at config load, not at validation
         match &result {
-            Err(e) => assert!(!e.contains("issue ID is required"), "Should not require issue IDs: {e}"),
+            Err(e) => assert!(
+                !e.contains("issue ID is required"),
+                "Should not require issue IDs: {e}"
+            ),
             Ok(_) => {}
         }
     }

@@ -33,74 +33,99 @@ pub fn render(f: &mut Frame, _app: &App) {
         .border_type(BorderType::Rounded)
         .border_style(Style::default().fg(BORDER_FOCUSED));
 
-    let inner = overlay_area.inner(Margin { horizontal: 1, vertical: 1 });
+    let inner = overlay_area.inner(Margin {
+        horizontal: 1,
+        vertical: 1,
+    });
 
     f.render_widget(block, overlay_area);
 
     let entries = vec![
-        ("Overview", vec![
-            ("q", "quit"),
-            ("?", "toggle help"),
-            ("tab / shift+tab", "cycle panel focus"),
-            ("↑↓ / j k", "navigate within panel"),
-            ("enter", "open agent detail"),
-            ("t", "open terminal view"),
-            ("/", "filter agent list"),
-            ("r", "force refresh"),
-            ("a", "toggle completed agents"),
-            ("1", "overview view"),
-            ("2", "event log view"),
-            ("4 / $", "cost analytics view"),
-            ("5", "timeline view"),
-        ]),
-        ("Agent Detail", vec![
-            ("esc / backspace", "return to overview"),
-            ("↑↓ / j k", "scroll"),
-            ("t", "open terminal view"),
-        ]),
-        ("Event Log", vec![
-            ("esc / q", "return to overview"),
-            ("↑↓ / j k", "scroll"),
-            ("g", "top"),
-            ("G", "bottom"),
-        ]),
-        ("Terminal View", vec![
-            ("esc", "return to overview"),
-            ("↑↓ / j k", "scroll"),
-            ("g", "top"),
-            ("G", "bottom"),
-            ("f", "toggle fullscreen"),
-            ("s", "enter split view"),
-            ("q", "quit"),
-        ]),
-        ("Split Terminal", vec![
-            ("esc", "return to overview"),
-            ("tab", "next panel"),
-            ("enter", "open full terminal"),
-            ("1-4", "focus panel by number"),
-            ("q", "quit"),
-        ]),
-        ("Mail Reader", vec![
-            ("esc / backspace", "return to overview"),
-            ("r", "reply"),
-            ("↑↓ / j k", "scroll"),
-            ("g", "top"),
-            ("G", "bottom"),
-            ("q", "quit"),
-        ]),
-        ("Cost Analytics", vec![
-            ("esc", "return to overview"),
-            ("↑↓ / j k", "scroll"),
-            ("q", "quit"),
-        ]),
-        ("Timeline", vec![
-            ("esc", "return to overview"),
-            ("↑↓ / j k", "scroll"),
-            ("q", "quit"),
-        ]),
-        ("Anywhere", vec![
-            ("ctrl+c", "force quit"),
-        ]),
+        (
+            "Overview",
+            vec![
+                ("q", "quit"),
+                ("?", "toggle help"),
+                ("tab / shift+tab", "cycle panel focus"),
+                ("↑↓ / j k", "navigate within panel"),
+                ("enter", "open agent detail"),
+                ("t", "open terminal view"),
+                ("/", "filter agent list"),
+                ("r", "force refresh"),
+                ("a", "toggle completed agents"),
+                ("1", "overview view"),
+                ("2", "event log view"),
+                ("4 / $", "cost analytics view"),
+                ("5", "timeline view"),
+            ],
+        ),
+        (
+            "Agent Detail",
+            vec![
+                ("esc / backspace", "return to overview"),
+                ("↑↓ / j k", "scroll"),
+                ("t", "open terminal view"),
+            ],
+        ),
+        (
+            "Event Log",
+            vec![
+                ("esc / q", "return to overview"),
+                ("↑↓ / j k", "scroll"),
+                ("g", "top"),
+                ("G", "bottom"),
+            ],
+        ),
+        (
+            "Terminal View",
+            vec![
+                ("esc", "return to overview"),
+                ("↑↓ / j k", "scroll"),
+                ("g", "top"),
+                ("G", "bottom"),
+                ("f", "toggle fullscreen"),
+                ("s", "enter split view"),
+                ("q", "quit"),
+            ],
+        ),
+        (
+            "Split Terminal",
+            vec![
+                ("esc", "return to overview"),
+                ("tab", "next panel"),
+                ("enter", "open full terminal"),
+                ("1-4", "focus panel by number"),
+                ("q", "quit"),
+            ],
+        ),
+        (
+            "Mail Reader",
+            vec![
+                ("esc / backspace", "return to overview"),
+                ("r", "reply"),
+                ("↑↓ / j k", "scroll"),
+                ("g", "top"),
+                ("G", "bottom"),
+                ("q", "quit"),
+            ],
+        ),
+        (
+            "Cost Analytics",
+            vec![
+                ("esc", "return to overview"),
+                ("↑↓ / j k", "scroll"),
+                ("q", "quit"),
+            ],
+        ),
+        (
+            "Timeline",
+            vec![
+                ("esc", "return to overview"),
+                ("↑↓ / j k", "scroll"),
+                ("q", "quit"),
+            ],
+        ),
+        ("Anywhere", vec![("ctrl+c", "force quit")]),
     ];
 
     let mut lines: Vec<ListItem> = vec![
@@ -120,10 +145,7 @@ pub fn render(f: &mut Frame, _app: &App) {
         ))));
         for (key, desc) in keys {
             lines.push(ListItem::new(Line::from(vec![
-                Span::styled(
-                    format!("   {:22}", key),
-                    Style::default().fg(ACCENT_CYAN),
-                ),
+                Span::styled(format!("   {:22}", key), Style::default().fg(ACCENT_CYAN)),
                 Span::styled(*desc, Style::default()),
             ])));
         }

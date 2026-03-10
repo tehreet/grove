@@ -4,11 +4,11 @@ use std::collections::HashMap;
 use std::fs;
 use std::path::Path;
 
-use super::{AgentRuntime, HooksDef, ReadyPhase, ReadyState, SpawnOpts};
 use super::claude::ClaudeRuntime;
 use super::codex::CodexRuntime;
 use super::copilot::CopilotRuntime;
 use super::gemini::GeminiRuntime;
+use super::{AgentRuntime, HooksDef, ReadyPhase, ReadyState, SpawnOpts};
 
 /// Resolve a runtime adapter by name.
 ///
@@ -64,7 +64,9 @@ pub fn resolve_runtime_for(
 
 /// List all available runtime names.
 pub fn available_runtimes() -> Vec<&'static str> {
-    vec!["claude", "codex", "gemini", "copilot", "pi", "sapling", "opencode"]
+    vec![
+        "claude", "codex", "gemini", "copilot", "pi", "sapling", "opencode",
+    ]
 }
 
 // ---------------------------------------------------------------------------
@@ -103,7 +105,8 @@ impl AgentRuntime for StubRuntime {
     }
 
     fn build_headless_command(&self, opts: &SpawnOpts) -> Vec<String> {
-        let mut parts: Vec<String> = self.headless_prefix
+        let mut parts: Vec<String> = self
+            .headless_prefix
             .split_whitespace()
             .map(|s| s.to_string())
             .collect();
@@ -127,8 +130,7 @@ impl AgentRuntime for StubRuntime {
         if !overlay_content.is_empty() {
             let overlay_file = worktree.join(&self.instr_path);
             if let Some(parent) = overlay_file.parent() {
-                fs::create_dir_all(parent)
-                    .map_err(|e| format!("Failed to create dir: {e}"))?;
+                fs::create_dir_all(parent).map_err(|e| format!("Failed to create dir: {e}"))?;
             }
             fs::write(&overlay_file, overlay_content)
                 .map_err(|e| format!("Failed to write overlay: {e}"))?;

@@ -41,21 +41,12 @@ fn render_panels(f: &mut Frame, app: &App, area: Rect) {
     }
 
     // 2-4 agents: 2x2 grid (bottom-right empty when count==3)
-    let rows = Layout::vertical([
-        Constraint::Percentage(50),
-        Constraint::Percentage(50),
-    ])
-    .split(area);
-    let top = Layout::horizontal([
-        Constraint::Percentage(50),
-        Constraint::Percentage(50),
-    ])
-    .split(rows[0]);
-    let bottom = Layout::horizontal([
-        Constraint::Percentage(50),
-        Constraint::Percentage(50),
-    ])
-    .split(rows[1]);
+    let rows =
+        Layout::vertical([Constraint::Percentage(50), Constraint::Percentage(50)]).split(area);
+    let top =
+        Layout::horizontal([Constraint::Percentage(50), Constraint::Percentage(50)]).split(rows[0]);
+    let bottom =
+        Layout::horizontal([Constraint::Percentage(50), Constraint::Percentage(50)]).split(rows[1]);
 
     let cells = [top[0], top[1], bottom[0], bottom[1]];
     for (i, &cell) in cells.iter().enumerate() {
@@ -72,7 +63,11 @@ fn render_panel(f: &mut Frame, app: &App, area: Rect, idx: usize) {
     };
     let lines_opt = app.split_lines.get(idx);
 
-    let border_color = if idx == app.split_focus { BORDER_FOCUSED } else { BORDER_UNFOCUSED };
+    let border_color = if idx == app.split_focus {
+        BORDER_FOCUSED
+    } else {
+        BORDER_UNFOCUSED
+    };
     let state_color = agent_state_color(&agent.state);
     let icon = agent_state_icon(&agent.state);
 

@@ -44,7 +44,9 @@ fn render_back_header(f: &mut Frame, app: &App, area: Rect) {
         Span::styled(" ← Agent: ", Style::default().fg(MUTED_GRAY)),
         Span::styled(
             session.agent_name.clone(),
-            Style::default().fg(ACCENT_ORANGE).add_modifier(Modifier::BOLD),
+            Style::default()
+                .fg(ACCENT_ORANGE)
+                .add_modifier(Modifier::BOLD),
         ),
         Span::styled(" (", Style::default().fg(MUTED_GRAY)),
         Span::styled(&session.capability, Style::default().fg(MUTED_GRAY)),
@@ -67,22 +69,15 @@ fn render_content(f: &mut Frame, app: &mut App, area: Rect) {
 
     // Top: session info | token info
     // Bottom: events | mail
-    let top_bottom = Layout::vertical([
-        Constraint::Length(8),
-        Constraint::Fill(1),
-    ])
-    .split(area);
+    let top_bottom = Layout::vertical([Constraint::Length(8), Constraint::Fill(1)]).split(area);
 
     render_top_panels(f, app, top_bottom[0], &session);
     render_bottom_panels(f, app, top_bottom[1], &session.agent_name);
 }
 
 fn render_top_panels(f: &mut Frame, app: &App, area: Rect, session: &AgentSession) {
-    let panels = Layout::horizontal([
-        Constraint::Percentage(50),
-        Constraint::Percentage(50),
-    ])
-    .split(area);
+    let panels =
+        Layout::horizontal([Constraint::Percentage(50), Constraint::Percentage(50)]).split(area);
 
     // Session panel
     let started_ago = time_ago(&session.started_at);
@@ -109,7 +104,10 @@ fn render_top_panels(f: &mut Frame, app: &App, area: Rect, session: &AgentSessio
         Line::from(vec![
             Span::styled("  PID:      ", Style::default().fg(MUTED_GRAY)),
             Span::styled(
-                session.pid.map(|p| p.to_string()).unwrap_or_else(|| "n/a".to_string()),
+                session
+                    .pid
+                    .map(|p| p.to_string())
+                    .unwrap_or_else(|| "n/a".to_string()),
                 Style::default(),
             ),
         ]),
@@ -136,21 +134,24 @@ fn render_top_panels(f: &mut Frame, app: &App, area: Rect, session: &AgentSessio
         Line::from(vec![
             Span::styled("  Input:    ", Style::default().fg(MUTED_GRAY)),
             Span::styled(
-                snap.map(|s| format_number(s.input_tokens)).unwrap_or_else(|| "—".to_string()),
+                snap.map(|s| format_number(s.input_tokens))
+                    .unwrap_or_else(|| "—".to_string()),
                 Style::default(),
             ),
         ]),
         Line::from(vec![
             Span::styled("  Output:   ", Style::default().fg(MUTED_GRAY)),
             Span::styled(
-                snap.map(|s| format_number(s.output_tokens)).unwrap_or_else(|| "—".to_string()),
+                snap.map(|s| format_number(s.output_tokens))
+                    .unwrap_or_else(|| "—".to_string()),
                 Style::default(),
             ),
         ]),
         Line::from(vec![
             Span::styled("  Cache:    ", Style::default().fg(MUTED_GRAY)),
             Span::styled(
-                snap.map(|s| format_number(s.cache_read_tokens)).unwrap_or_else(|| "—".to_string()),
+                snap.map(|s| format_number(s.cache_read_tokens))
+                    .unwrap_or_else(|| "—".to_string()),
                 Style::default(),
             ),
         ]),
@@ -180,18 +181,12 @@ fn render_top_panels(f: &mut Frame, app: &App, area: Rect, session: &AgentSessio
         .border_type(BorderType::Rounded)
         .border_style(Style::default().fg(BORDER_UNFOCUSED));
 
-    f.render_widget(
-        Paragraph::new(token_lines).block(token_block),
-        panels[1],
-    );
+    f.render_widget(Paragraph::new(token_lines).block(token_block), panels[1]);
 }
 
 fn render_bottom_panels(f: &mut Frame, app: &mut App, area: Rect, _agent_name: &str) {
-    let panels = Layout::vertical([
-        Constraint::Percentage(60),
-        Constraint::Percentage(40),
-    ])
-    .split(area);
+    let panels =
+        Layout::vertical([Constraint::Percentage(60), Constraint::Percentage(40)]).split(area);
 
     // Recent events
     let events = &app.agent_detail_events;
@@ -217,10 +212,7 @@ fn render_bottom_panels(f: &mut Frame, app: &mut App, area: Rect, _agent_name: &
                 .unwrap_or_default();
             ListItem::new(Line::from(vec![
                 Span::styled(format!("{} ", time_str), Style::default().fg(MUTED_GRAY)),
-                Span::styled(
-                    format!("{}{}{}", tool_label, args, dur),
-                    Style::default(),
-                ),
+                Span::styled(format!("{}{}{}", tool_label, args, dur), Style::default()),
             ]))
         })
         .collect();
