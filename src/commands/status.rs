@@ -111,6 +111,7 @@ pub fn execute(
             .ok()
             .and_then(|store| {
                 store.get_all(Some(MailFilters {
+                    to_agent: Some("orchestrator".to_string()),
                     unread: Some(true),
                     ..Default::default()
                 })).ok()

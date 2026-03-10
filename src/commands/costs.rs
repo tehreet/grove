@@ -30,14 +30,12 @@ pub struct CostTotals {
 #[serde(rename_all = "camelCase")]
 struct CostsOutput {
     sessions: Vec<SessionMetrics>,
-    totals: CostTotals,
 }
 
 #[derive(Debug, Serialize)]
 #[serde(rename_all = "camelCase")]
 struct LiveOutput {
     snapshots: Vec<TokenSnapshot>,
-    totals: CostTotals,
 }
 
 // ---------------------------------------------------------------------------
@@ -60,13 +58,6 @@ pub fn execute(
         if json {
             let empty = CostsOutput {
                 sessions: vec![],
-                totals: CostTotals {
-                    input_tokens: 0,
-                    output_tokens: 0,
-                    cache_read_tokens: 0,
-                    cache_creation_tokens: 0,
-                    estimated_cost_usd: 0.0,
-                },
             };
             println!("{}", json_output("costs", &empty));
         } else {
@@ -87,7 +78,7 @@ pub fn execute(
         let totals = totals_from_snapshots(&snapshots);
 
         if json {
-            let output = LiveOutput { snapshots, totals };
+            let output = LiveOutput { snapshots };
             println!("{}", json_output("costs", &output));
         } else {
             print_snapshots_text(&snapshots, &totals);
@@ -115,7 +106,6 @@ pub fn execute(
     if json {
         let output = CostsOutput {
             sessions: sessions.clone(),
-            totals,
         };
         println!("{}", json_output("costs", &output));
     } else {
