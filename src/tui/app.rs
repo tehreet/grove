@@ -23,6 +23,7 @@ pub enum View {
     Overview,
     AgentDetail,
     EventLog,
+    MailReader,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -88,6 +89,13 @@ pub struct App {
     pub agent_detail_events: Vec<StoredEvent>,
     pub agent_detail_mail: Vec<MailMessage>,
 
+    // Mail reader
+    pub selected_message: Option<MailMessage>,
+    pub mail_reader_scroll: usize,
+    pub thread_messages: Vec<MailMessage>,
+    pub reply_mode: bool,
+    pub reply_text: String,
+
     // Incremental event cursor
     pub last_event_id: i64,
 
@@ -129,6 +137,12 @@ impl App {
             selected_agent: None,
             agent_detail_events: vec![],
             agent_detail_mail: vec![],
+
+            selected_message: None,
+            mail_reader_scroll: 0,
+            thread_messages: vec![],
+            reply_mode: false,
+            reply_text: String::new(),
 
             last_event_id: 0,
             tick_count: 0,
@@ -387,6 +401,7 @@ impl App {
             View::AgentDetail => self.handle_key_detail(key),
             View::EventLog => self.handle_key_event_log(key),
             View::Overview => self.handle_key_overview(key),
+            View::MailReader => self.handle_key_mail_reader(key),
         }
     }
 
@@ -416,7 +431,13 @@ impl App {
             KeyCode::Char('3') => self.show_help = true,
             KeyCode::Up | KeyCode::Char('k') => self.scroll_up(),
             KeyCode::Down | KeyCode::Char('j') => self.scroll_down(),
-            KeyCode::Enter => self.enter_detail(),
+            KeyCode::Enter => {
+                if self.focus == Focus::Mail {
+                    self.enter_mail_reader();
+                } else {
+                    self.enter_detail();
+                }
+            }
             KeyCode::Char('c') if key.modifiers.contains(KeyModifiers::CONTROL) => {
                 self.running = false;
             }
@@ -467,6 +488,139 @@ impl App {
                 self.event_log_scroll = 0;
             }
             _ => {}
+        }
+    }
+
+    fn handle_key_mail_reader(&mut self, key: crossterm::event::KeyEvent) {
+        use crossterm::event::KeyCode;
+
+        // Reply compose mode intercepts keys
+        if self.reply_mode {
+            match key.code {
+                KeyCode::Esc => {
+                    self.reply_mode = false;
+                    self.reply_text.clear();
+                }
+                KeyCode::Enter => {
+                    self.send_reply();
+                    self.reply_mode = false;
+                    self.reply_text.clear();
+                }
+                KeyCode::Backspace => {
+                    self.reply_text.pop();
+                }
+                KeyCode::Char(c) => {
+                    self.reply_text.push(c);
+                }
+                _ => {}
+            }
+            return;
+        }
+
+        match key.code {
+            KeyCode::Esc | KeyCode::Backspace => {
+                self.current_view = View::Overview;
+                self.selected_message = None;
+                self.thread_messages.clear();
+                self.mail_reader_scroll = 0;
+            }
+            KeyCode::Char('r') => {
+                self.reply_mode = true;
+                self.reply_text.clear();
+            }
+            KeyCode::Up | KeyCode::Char('k') => {
+                self.mail_reader_scroll = self.mail_reader_scroll.saturating_sub(1);
+            }
+            KeyCode::Down | KeyCode::Char('j') => {
+                self.mail_reader_scroll += 1;
+            }
+            KeyCode::Char('g') => {
+                self.mail_reader_scroll = 0;
+            }
+            KeyCode::Char('G') => {
+                // Scroll to bottom — no easy max without render context, use large value
+                self.mail_reader_scroll = usize::MAX / 2;
+            }
+            KeyCode::Char('q') => self.running = false,
+            _ => {}
+        }
+    }
+
+    fn enter_mail_reader(&mut self) {
+        let idx = self.mail_scroll;
+        if let Some(msg) = self.messages.get(idx).cloned() {
+            // Mark as read
+            let mail_path = self.mail_db();
+            if std::path::PathBuf::from(&mail_path).exists() {
+                if let Ok(store) = crate::db::mail::MailStore::new(&mail_path) {
+                    let _ = store.mark_read(&msg.id);
+                }
+            }
+
+            // Load thread if applicable
+            let thread_id = msg.thread_id.clone().unwrap_or_else(|| msg.id.clone());
+            let mail_path2 = self.mail_db();
+            if std::path::PathBuf::from(&mail_path2).exists() {
+                if let Ok(store) = crate::db::mail::MailStore::new(&mail_path2) {
+                    if let Ok(thread) = store.get_by_thread(&thread_id) {
+                        self.thread_messages = thread;
+                    }
+                }
+            }
+
+            self.selected_message = Some(msg);
+            self.mail_reader_scroll = 0;
+            self.reply_mode = false;
+            self.reply_text.clear();
+            self.current_view = View::MailReader;
+        }
+    }
+
+    fn send_reply(&mut self) {
+        use crate::types::{InsertMailMessage, MailMessageType, MailPriority};
+
+        let body = self.reply_text.trim().to_string();
+        if body.is_empty() {
+            return;
+        }
+
+        let original = match &self.selected_message {
+            Some(m) => m.clone(),
+            None => return,
+        };
+
+        let thread_id = original.thread_id.clone().unwrap_or_else(|| original.id.clone());
+
+        let reply = InsertMailMessage {
+            id: None,
+            from_agent: original.to.clone(),
+            to_agent: original.from.clone(),
+            subject: format!("Re: {}", original.subject),
+            body,
+            priority: MailPriority::Normal,
+            message_type: MailMessageType::Status,
+            thread_id: Some(thread_id.clone()),
+            payload: None,
+        };
+
+        let mail_path = self.mail_db();
+        if std::path::PathBuf::from(&mail_path).exists() {
+            if let Ok(store) = crate::db::mail::MailStore::new(&mail_path) {
+                if let Ok(sent) = store.insert(&reply) {
+                    // Refresh thread to include the new reply
+                    if let Ok(thread) = store.get_by_thread(&thread_id) {
+                        self.thread_messages = thread;
+                    }
+                    // Also refresh global messages list
+                    self.refresh_mail();
+                    // Update selected message's thread_id if it was just the message id
+                    if let Some(ref mut msg) = self.selected_message {
+                        if msg.thread_id.is_none() {
+                            msg.thread_id = sent.thread_id;
+                        }
+                    }
+                }
+            }
         }
     }
 
