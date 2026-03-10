@@ -1,6 +1,6 @@
 //! Codex (OpenAI) runtime adapter.
 //!
-//! Spawns agents via `codex exec --full-auto --ephemeral` for headless mode.
+//! Spawns agents via `codex exec --dangerously-bypass-approvals-and-sandbox`.
 //! Instructions delivered via AGENTS.md (Codex's native convention).
 //! Security enforced via Codex's OS-level sandbox, not hooks.
 
@@ -45,8 +45,7 @@ impl AgentRuntime for CodexRuntime {
         let mut cmd = vec![
             "codex".to_string(),
             "exec".to_string(),
-            "--full-auto".to_string(),
-            "--ephemeral".to_string(),
+            "--dangerously-bypass-approvals-and-sandbox".to_string(),
         ];
 
         // Only add --model if it's not a manifest alias (sonnet/opus/haiku)
@@ -64,7 +63,7 @@ impl AgentRuntime for CodexRuntime {
     }
 
     fn build_interactive_command(&self, opts: &SpawnOpts) -> String {
-        let mut cmd = "codex --full-auto".to_string();
+        let mut cmd = "codex --dangerously-bypass-approvals-and-sandbox".to_string();
         if !should_omit_model(&opts.model) {
             cmd.push_str(&format!(" --model {}", opts.model));
         }
@@ -140,11 +139,10 @@ mod tests {
         let cmd = CodexRuntime.build_headless_command(&make_opts());
         assert_eq!(cmd[0], "codex");
         assert_eq!(cmd[1], "exec");
-        assert_eq!(cmd[2], "--full-auto");
-        assert_eq!(cmd[3], "--ephemeral");
-        assert_eq!(cmd[4], "--model");
-        assert_eq!(cmd[5], "o4-mini");
-        assert!(cmd[6].contains("AGENTS.md"));
+        assert_eq!(cmd[2], "--dangerously-bypass-approvals-and-sandbox");
+        assert_eq!(cmd[3], "--model");
+        assert_eq!(cmd[4], "o4-mini");
+        assert!(cmd[5].contains("AGENTS.md"));
     }
 
     #[test]
