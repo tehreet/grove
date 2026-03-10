@@ -299,6 +299,63 @@ impl EventStore {
         rows.collect::<rusqlite::Result<Vec<_>>>().map_err(GroveError::from)
     }
 
+    /// General-purpose query with optional filters.
+    /// Used by logs and replay commands.
+    pub fn query(
+        &self,
+        agent: Option<&str>,
+        agents: Option<&[String]>,
+        run_id: Option<&str>,
+        opts: &EventQueryOptions,
+        ascending: bool,
+    ) -> Result<Vec<StoredEvent>> {
+        let mut sql = String::from(
+            "SELECT id, run_id, agent_name, session_id, event_type, tool_name, tool_args, tool_duration_ms, level, data, created_at
+             FROM events WHERE 1=1",
+        );
+        if let Some(a) = agent {
+            sql.push_str(&format!(" AND agent_name = '{}'", a.replace('\'', "''")));
+        }
+        if let Some(multi) = agents {
+            if !multi.is_empty() {
+                let quoted: Vec<String> = multi
+                    .iter()
+                    .map(|a| format!("'{}'", a.replace('\'', "''")))
+                    .collect();
+                sql.push_str(&format!(" AND agent_name IN ({})", quoted.join(",")));
+            }
+        }
+        if let Some(rid) = run_id {
+            sql.push_str(&format!(" AND run_id = '{}'", rid.replace('\'', "''")));
+        }
+        if let Some(ref since) = opts.since {
+            sql.push_str(&format!(" AND created_at >= '{}'", since.replace('\'', "''")));
+        }
+        if let Some(ref until) = opts.until {
+            sql.push_str(&format!(" AND created_at <= '{}'", until.replace('\'', "''")));
+        }
+        if let Some(ref level) = opts.level {
+            let level_str = match level {
+                EventLevel::Debug => "debug",
+                EventLevel::Info => "info",
+                EventLevel::Warn => "warn",
+                EventLevel::Error => "error",
+            };
+            sql.push_str(&format!(" AND level = '{}'", level_str));
+        }
+        if ascending {
+            sql.push_str(" ORDER BY created_at ASC");
+        } else {
+            sql.push_str(" ORDER BY created_at DESC");
+        }
+        if let Some(limit) = opts.limit {
+            sql.push_str(&format!(" LIMIT {}", limit));
+        }
+        let mut stmt = self.conn.prepare(&sql)?;
+        let rows = stmt.query_map([], row_to_event)?;
+        rows.collect::<rusqlite::Result<Vec<_>>>().map_err(GroveError::from)
+    }
+
     /// Get the maximum event ID (for follow mode cursor).
     pub fn get_max_id(&self) -> Result<i64> {
         let id: i64 = self
@@ -508,6 +565,38 @@ mod tests {
 
         let events = store.get_by_run("run-1", None).unwrap();
         assert_eq!(events.len(), 1);
+    }
+
+    #[test]
+    fn test_query_all_no_filters() {
+        let store = EventStore::new(":memory:").unwrap();
+        store.insert(&make_event("agent-a", EventType::SessionStart)).unwrap();
+        store.insert(&make_event("agent-b", EventType::TurnStart)).unwrap();
+        let opts = EventQueryOptions::default();
+        let events = store.query(None, None, None, &opts, false).unwrap();
+        assert_eq!(events.len(), 2);
+    }
+
+    #[test]
+    fn test_query_with_agent_filter() {
+        let store = EventStore::new(":memory:").unwrap();
+        store.insert(&make_event("agent-a", EventType::SessionStart)).unwrap();
+        store.insert(&make_event("agent-b", EventType::TurnStart)).unwrap();
+        let opts = EventQueryOptions::default();
+        let events = store.query(Some("agent-a"), None, None, &opts, false).unwrap();
+        assert_eq!(events.len(), 1);
+    }
+
+    #[test]
+    fn test_query_multi_agent() {
+        let store = EventStore::new(":memory:").unwrap();
+        store.insert(&make_event("agent-a", EventType::SessionStart)).unwrap();
+        store.insert(&make_event("agent-b", EventType::TurnStart)).unwrap();
+        store.insert(&make_event("agent-c", EventType::TurnEnd)).unwrap();
+        let agents = vec!["agent-a".to_string(), "agent-b".to_string()];
+        let opts = EventQueryOptions::default();
+        let events = store.query(None, Some(&agents), None, &opts, true).unwrap();
+        assert_eq!(events.len(), 2);
     }
 
     #[test]
