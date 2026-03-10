@@ -1,4 +1,4 @@
-//! Overview view — main dashboard layout.
+//! Overview view — main dashboard layout with agent cards + mini-terminal.
 
 use ratatui::{
     layout::{Constraint, Layout, Rect},
@@ -8,19 +8,23 @@ use ratatui::{
     Frame,
 };
 
-use crate::tui::app::App;
-use crate::tui::theme::MUTED_GRAY;
-use crate::tui::widgets::{agent_table, feed, header, mail_list, status_bar};
+use crate::tui::app::{capture_tmux, App};
+use crate::tui::theme::{agent_state_icon, unfocused_block, MUTED_GRAY};
+use crate::tui::widgets::{agent_card, feed, header, mail_list, status_bar};
+use crate::types::AgentState;
+
+// New color names — will come from theme.rs after Builder 1's changes merge.
+// Defined locally so this compiles standalone.
+const MUTED: ratatui::style::Color = ratatui::style::Color::Rgb(98, 114, 164);
 
 pub fn render(f: &mut Frame, app: &mut App) {
     let area = f.area();
 
-    // Outer layout: header | body | merge bar | key hints
     let outer = Layout::vertical([
         Constraint::Length(1), // header
         Constraint::Fill(1),   // main body
-        Constraint::Length(1), // merge/metrics bar
-        Constraint::Length(1), // key hints
+        Constraint::Length(1), // merge bar
+        Constraint::Length(1), // status bar
     ])
     .split(area);
 
@@ -31,22 +35,68 @@ pub fn render(f: &mut Frame, app: &mut App) {
 }
 
 fn render_body(f: &mut Frame, app: &mut App, area: Rect) {
-    // Body: agent table (top, ~40%) | [feed | mail] (bottom, ~60%)
-    let agent_height = (area.height * 40 / 100).max(5);
-    let bottom_height = area.height.saturating_sub(agent_height);
-
     let body = Layout::vertical([
-        Constraint::Length(agent_height),
-        Constraint::Length(bottom_height),
+        Constraint::Percentage(45), // cards
+        Constraint::Fill(1),        // feed + mail
+        Constraint::Length(7),      // mini-terminal
     ])
     .split(area);
 
-    agent_table::render(f, app, body[0]);
+    render_cards(f, app, body[0]);
     render_feed_mail(f, app, body[1]);
+    render_mini_terminal(f, app, body[2]);
+}
+
+fn render_cards(f: &mut Frame, app: &mut App, area: Rect) {
+    let visible = app.visible_sessions();
+    let card_height: u16 = 6;
+    let cols: u16 = if area.width >= 120 { 2 } else { 1 };
+    let card_width = area.width / cols;
+
+    let mut row: u16 = 0;
+    let mut col: u16 = 0;
+    let selected_idx = app.table_state.selected().unwrap_or(0);
+
+    for (i, session) in visible.iter().enumerate() {
+        if area.y + row + card_height > area.y + area.height {
+            break;
+        }
+
+        let card_area = Rect::new(
+            area.x + col * card_width,
+            area.y + row,
+            card_width,
+            card_height,
+        );
+
+        let snapshot = app.snapshot_for(&session.agent_name);
+        let latest_event = app
+            .events
+            .iter()
+            .rev()
+            .find(|e| e.agent_name == session.agent_name);
+        let tmux_lines = capture_tmux(&session.tmux_session);
+        let last_line = tmux_lines.last().map(|s| s.as_str()).unwrap_or("");
+
+        agent_card::render_card(
+            f,
+            session,
+            snapshot,
+            latest_event,
+            last_line,
+            card_area,
+            i == selected_idx,
+        );
+
+        col += 1;
+        if col >= cols {
+            col = 0;
+            row += card_height;
+        }
+    }
 }
 
 fn render_feed_mail(f: &mut Frame, app: &mut App, area: Rect) {
-    // [Feed (60%) | Mail (40%)]
     let panels = Layout::horizontal([
         Constraint::Percentage(60),
         Constraint::Percentage(40),
@@ -55,6 +105,53 @@ fn render_feed_mail(f: &mut Frame, app: &mut App, area: Rect) {
 
     feed::render(f, app, panels[0]);
     mail_list::render(f, app, panels[1]);
+}
+
+fn render_mini_terminal(f: &mut Frame, app: &App, area: Rect) {
+    let active: Vec<&crate::types::AgentSession> = app
+        .sessions
+        .iter()
+        .filter(|s| s.state == AgentState::Working || s.state == AgentState::Booting)
+        .collect();
+
+    if active.is_empty() {
+        let block = unfocused_block("TERMINAL");
+        let p = Paragraph::new("  no active agents")
+            .style(Style::default().fg(MUTED_GRAY))
+            .block(block);
+        f.render_widget(p, area);
+        return;
+    }
+
+    // Rotate every 5 seconds
+    let idx = (app.tick_count / 5) as usize % active.len();
+    let agent = active[idx];
+
+    let title = format!(
+        "TERMINAL — {} {}",
+        agent_state_icon(&agent.state),
+        agent.agent_name
+    );
+    let block = unfocused_block(&title);
+
+    let lines = capture_tmux(&agent.tmux_session);
+    let display_lines: Vec<Line> = lines
+        .iter()
+        .rev()
+        .take(5)
+        .collect::<Vec<_>>()
+        .into_iter()
+        .rev()
+        .map(|l| {
+            Line::styled(
+                l.clone(),
+                Style::default().fg(ratatui::style::Color::Rgb(98, 114, 164)),
+            )
+        })
+        .collect();
+
+    let p = Paragraph::new(display_lines).block(block);
+    f.render_widget(p, area);
 }
 
 fn render_merge_bar(f: &mut Frame, app: &App, area: Rect) {
@@ -75,7 +172,7 @@ fn render_merge_bar(f: &mut Frame, app: &App, area: Rect) {
 
     let bar = Paragraph::new(Line::from(vec![Span::styled(
         text,
-        Style::default().fg(MUTED_GRAY),
+        Style::default().fg(MUTED),
     )]));
 
     f.render_widget(bar, area);
