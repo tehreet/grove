@@ -1,5 +1,7 @@
 //! TUI view modules.
 
+pub mod cost_analytics;
+pub mod timeline;
 pub mod agent_detail;
 pub mod cost_analytics;
 pub mod event_log;
