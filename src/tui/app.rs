@@ -3,6 +3,7 @@
 use std::path::PathBuf;
 
 use ratatui::widgets::TableState;
+use crate::tui::widgets::toasts::Toast;
 
 use crate::db::events::EventStore;
 use crate::db::mail::MailStore;
@@ -31,12 +32,6 @@ pub enum View {
 }
 
 #[allow(dead_code)]
-pub struct Toast {
-    pub message: String,
-    pub color: ratatui::style::Color,
-    pub created: std::time::Instant,
-}
-
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum Focus {
     Agents,
