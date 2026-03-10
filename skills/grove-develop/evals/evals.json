@@ -1,0 +1,23 @@
+{
+  "skill_name": "grove-develop",
+  "evals": [
+    {
+      "id": 1,
+      "prompt": "I need to add a 'grove benchmark' command that runs performance tests and outputs results. Walk me through what files I need to create and modify.",
+      "expected_output": "Should cover: create src/commands/benchmark.rs following the command pattern, add to mod.rs, wire clap struct + enum variant + match arm in main.rs, mention --json support and quality gates",
+      "files": []
+    },
+    {
+      "id": 2,
+      "prompt": "I want to add a runtime adapter for Aider so grove can spawn Aider agents. What do I need to implement?",
+      "expected_output": "Should explain AgentRuntime trait methods, instruction_path convention, build_headless_command, deploy_config, registry registration, and mention model alias handling",
+      "files": []
+    },
+    {
+      "id": 3,
+      "prompt": "I'm adding a new database table for tracking agent resource usage. How do I add a DB store in grove?",
+      "expected_output": "Should show the store pattern with WAL mode, busy_timeout, CREATE TABLE IF NOT EXISTS, and explain where types go (types.rs not the store file)",
+      "files": []
+    }
+  ]
+}

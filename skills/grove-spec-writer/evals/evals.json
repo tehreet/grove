@@ -1,0 +1,23 @@
+{
+  "skill_name": "grove-spec-writer",
+  "evals": [
+    {
+      "id": 1,
+      "prompt": "I need to add WebSocket support to grove for real-time agent event streaming. Write a spec for this that I can give to grove agents.",
+      "expected_output": "Should produce a spec with deliverables, file scope with builder assignments, verification commands that test actual WebSocket behavior, acceptance criteria, and mention main.rs wiring explicitly",
+      "files": []
+    },
+    {
+      "id": 2,
+      "prompt": "I want 3 agents to work on different parts of a new notification system. Help me decompose this so they don't conflict.",
+      "expected_output": "Should assign each builder exclusive files, designate one integration builder for main.rs/mod.rs, list Do NOT modify files, and explain the sequential merge strategy",
+      "files": []
+    },
+    {
+      "id": 3,
+      "prompt": "Last time I dispatched a spec, the agents compiled fine but the feature didn't actually work. How do I write better verification commands?",
+      "expected_output": "Should explain the difference between quality gates (compilation) and behavioral verification, provide copy-paste-runnable command patterns, and reference RETRO-001/002",
+      "files": []
+    }
+  ]
+}

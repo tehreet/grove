@@ -1,0 +1,23 @@
+{
+  "skill_name": "grove-orchestrate",
+  "evals": [
+    {
+      "id": 1,
+      "prompt": "I have a Rust project and I want to add a REST API layer and a CLI layer in parallel using grove. How should I set this up?",
+      "expected_output": "Should recommend 2-3 builders with explicit file ownership, suggest runtime selection, mention sequential merge, warn about main.rs conflicts, and provide grove sling commands",
+      "files": []
+    },
+    {
+      "id": 2,
+      "prompt": "My grove agent completed but the branch wasn't merged and now there are conflicts. What do I do?",
+      "expected_output": "Should walk through grove merge, conflict marker detection with grep, manual resolution, and reference the anti-pattern of not merging sequentially",
+      "files": []
+    },
+    {
+      "id": 3,
+      "prompt": "I want to use Codex agents instead of Claude for a grove build to save costs. What do I need to know?",
+      "expected_output": "Should explain --runtime codex, --no-directives to avoid parallel cargo deadlock, --dangerously-bypass-approvals-and-sandbox, AGENTS.md instruction path, and model alias filtering",
+      "files": []
+    }
+  ]
+}
