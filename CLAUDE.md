@@ -2,173 +2,118 @@
 
 Rust rebuild of overstory — multi-agent orchestration for AI coding agents.
 
-**You are building a new Rust CLI, not porting TypeScript line-by-line.** Write idiomatic Rust. Use the reference TypeScript in `reference/` to understand behavior and data contracts, but the code you write should feel native to Rust.
+## What This Is
+
+Grove orchestrates multiple AI coding agents (Claude Code, Codex, Gemini, Copilot) working in parallel on a codebase. Each agent gets its own git worktree, reads instructions from an overlay file, communicates via a SQLite mail system, and merges work back through a tiered conflict resolver.
 
 ## Tech Stack
 
-- **Language:** Rust 2021 edition, stable toolchain
-- **CLI:** clap v4 with derive macros
+- **Language:** Rust 2021 edition
+- **CLI:** clap v4 (derive macros)
 - **Database:** rusqlite with bundled SQLite (WAL mode, 5s busy timeout)
 - **Serialization:** serde + serde_json + serde_yaml
-- **Async:** tokio (only where needed — coordinator event loop, TUI, --follow modes)
+- **Async:** tokio (coordinator event loop, TUI, streaming modes only)
 - **TUI:** ratatui + crossterm
-- **Errors:** thiserror for typed errors, anyhow for application-level
-- **HTTP:** reqwest (for Claude API calls in planner + AI-resolve)
-- **Git:** shelling out to git CLI via std::process::Command (libgit2 via git2 crate for merge operations)
+- **HTTP:** reqwest (Claude API calls in planner)
 
 ## Architecture
 
-Most commands are synchronous: read config → open database → query → format → print. Only the coordinator (persistent event loop), dashboard (TUI), feed --follow (streaming), and watchdog (daemon) need async.
+**No tmux.** All agents are direct child processes with stdout/stderr piped to log files. PIDs tracked in sessions.db. A monitor daemon detects process death via `/proc/<pid>`.
 
-All database access uses rusqlite synchronously. No async database layer. This matches the original bun:sqlite pattern — synchronous, WAL mode, concurrent access from multiple processes.
+**Multi-runtime.** Four real adapters (Claude, Codex, Gemini, Copilot) + three stubs (Pi, Sapling, OpenCode). Each adapter writes its overlay to the correct instruction file:
+- Claude → `.claude/CLAUDE.md`
+- Codex → `AGENTS.md`
+- Gemini → `GEMINI.md`
+- Copilot → `.github/copilot-instructions.md`
 
-## Conventions
+**Coordinator is a Rust event loop**, not an LLM session. LLM called only for one-shot task decomposition.
 
-- All shared types go in `src/types.rs`
-- All errors in `src/errors.rs` using thiserror
-- Database stores in `src/db/` — one file per database (sessions.rs, mail.rs, events.rs, metrics.rs, merge_queue.rs)
-- Commands in `src/commands/` — one file per command
-- Every command that supports `--json` must produce output compatible with the TypeScript version's `--json` output
-- Use `colored` crate for terminal colors, matching the brand palette in `reference/color.ts`
-- Tests go in the same file as the code (`#[cfg(test)] mod tests`)
-- Integration tests in `tests/`
+Most commands are synchronous: read config → open DB → query → format → print. Only coordinator, dashboard, feed --follow, and watchdog need async.
+
+## Project Layout
+
+```
+src/
+├── main.rs              # CLI entry point (clap), 35 commands
+├── types.rs             # All shared types with serde derives
+├── config.rs            # YAML config loader
+├── errors.rs            # Typed errors (thiserror)
+├── json.rs              # JSON output helpers
+├── commands/            # One file per command
+├── db/                  # SQLite stores (sessions, mail, events, metrics, merge_queue)
+├── runtimes/            # Runtime adapters (claude, codex, gemini, copilot, registry)
+├── coordinator/         # Event loop + LLM planner
+├── merge/               # Tiered conflict resolver
+├── tui/                 # ratatui dashboard (views, widgets)
+├── watchdog/            # PID health monitoring
+├── agents/              # Agent manifest + overlay renderer
+├── process/             # Child process spawning + monitoring
+├── worktree/            # Git worktree management
+└── logging/             # Terminal output formatting
+reference/               # Overstory TypeScript source (behavior reference, not to port verbatim)
+agents/                  # Agent definition markdown files (language-agnostic)
+templates/               # Overlay template (rendered per-agent by sling)
+docs/                    # Phase specs, architecture, retro, gap analysis
+tests/                   # Integration tests
+```
 
 ## Quality Gates
 
 ```bash
-cargo build          # Must compile clean
-cargo test           # All tests pass
-cargo clippy         # No warnings
-cargo fmt --check    # Formatted
+cargo build              # Must compile clean
+cargo test               # All tests pass (453 currently)
+cargo clippy -- -D warnings  # No warnings
 ```
 
-## Reference Material
+## Conventions
 
-- `reference/types.ts` — All 72 shared types. Port these to `src/types.rs` with serde derives.
-- `reference/config.ts` — YAML config loader. Port to `src/config.rs`.
-- `reference/errors.ts` — Error types. Port to `src/errors.rs`.
-- `reference/index.ts` — CLI entry point with all 35 commands. Port to `src/main.rs` with clap.
-- `reference/*-store.ts` — Database stores. Port to `src/db/*.rs`.
-- `reference/color.ts` + `reference/theme.ts` — Terminal output styling. Port to `src/logging/`.
-- `agents/*.md` — Agent definitions (language-agnostic, used as-is).
-- `templates/overlay.md.tmpl` — Overlay template (used as-is, rendered with string replace).
+- Types in `src/types.rs`, errors in `src/errors.rs`
+- DB stores in `src/db/` — one file per database
+- Commands in `src/commands/` — one file per command
+- Tests in same file (`#[cfg(test)] mod tests`)
+- `--json` output must match overstory's JSON schema
+- Runtime adapters implement the `AgentRuntime` trait in `src/runtimes/mod.rs`
 
-## SQLite Schemas
+## Runtime Adapters
 
-These are the data contracts. Grove reads and writes the same databases as overstory.
+Each adapter implements `AgentRuntime` (see `src/runtimes/mod.rs`):
+- `build_headless_command()` — argv for spawning the agent
+- `deploy_config()` — write overlay + hooks to the worktree
+- `instruction_path()` — where the overlay file goes
+- `build_env()` — environment variables for the child process
 
-**sessions.db:** sessions (id, agent_name, capability, worktree_path, branch_name, task_id, tmux_session, state, pid, parent_agent, depth, run_id, started_at, last_activity, escalation_level, stalled_since, transcript_path) + runs (id, started_at, completed_at, description)
+Per-capability routing via config:
+```yaml
+runtime:
+  default: claude
+  capabilities:
+    builder: codex    # builders use Codex
+    lead: claude      # leads use Claude
+```
+
+## SQLite Schemas (interop with overstory)
+
+**sessions.db:** sessions (id, agent_name, capability, worktree_path, branch_name, task_id, tmux_session, state, pid, parent_agent, depth, run_id, started_at, last_activity, escalation_level, stalled_since, transcript_path)
 
 **mail.db:** messages (id, from_agent, to_agent, subject, body, type, priority, thread_id, payload, read, created_at)
 
 **events.db:** events (id, run_id, agent_name, session_id, event_type, tool_name, tool_args, tool_duration_ms, level, data, created_at)
 
-**metrics.db:** sessions (agent_name, task_id, capability, started_at, completed_at, duration_ms, exit_code, merge_result, parent_agent, input_tokens, output_tokens, cache_read_tokens, cache_creation_tokens, estimated_cost_usd, model_used, run_id) + token_snapshots (id, agent_name, input_tokens, output_tokens, cache_read_tokens, cache_creation_tokens, estimated_cost_usd, model_used, run_id, created_at)
+**metrics.db:** sessions (...token counts, cost, duration) + token_snapshots
 
 **merge-queue.db:** merge_queue (id, branch_name, task_id, agent_name, files_modified, enqueued_at, status, resolved_tier)
 
-<!-- mulch:start -->
-## Project Expertise (Mulch)
-<!-- mulch-onboard-v:1 -->
+## Current Status
 
-This project uses [Mulch](https://github.com/jayminwest/mulch) for structured expertise management.
-
-**At the start of every session**, run:
-```bash
-mulch prime
-```
-
-This injects project-specific conventions, patterns, decisions, and other learnings into your context.
-Use `mulch prime --files src/foo.ts` to load only records relevant to specific files.
-
-**Before completing your task**, review your work for insights worth preserving — conventions discovered,
-patterns applied, failures encountered, or decisions made — and record them:
-```bash
-mulch record <domain> --type <convention|pattern|failure|decision|reference|guide> --description "..."
-```
-
-Link evidence when available: `--evidence-commit <sha>`, `--evidence-bead <id>`
-
-Run `mulch status` to check domain health and entry counts.
-Run `mulch --help` for full usage.
-Mulch write commands use file locking and atomic writes — multiple agents can safely record to the same domain concurrently.
-
-### Before You Finish
-
-1. Discover what to record:
-   ```bash
-   mulch learn
-   ```
-2. Store insights from this work session:
-   ```bash
-   mulch record <domain> --type <convention|pattern|failure|decision|reference|guide> --description "..."
-   ```
-3. Validate and commit:
-   ```bash
-   mulch sync
-   ```
-<!-- mulch:end -->
-
-<!-- seeds:start -->
-## Issue Tracking (Seeds)
-<!-- seeds-onboard-v:1 -->
-
-This project uses [Seeds](https://github.com/jayminwest/seeds) for git-native issue tracking.
-
-**At the start of every session**, run:
-```
-sd prime
-```
-
-This injects session context: rules, command reference, and workflows.
-
-**Quick reference:**
-- `sd ready` — Find unblocked work
-- `sd create --title "..." --type task --priority 2` — Create issue
-- `sd update <id> --status in_progress` — Claim work
-- `sd close <id>` — Complete work
-- `sd dep add <id> <depends-on>` — Add dependency between issues
-- `sd sync` — Sync with git (run before pushing)
-
-### Before You Finish
-1. Close completed issues: `sd close <id>`
-2. File issues for remaining work: `sd create --title "..."`
-3. Sync and push: `sd sync && git push`
-<!-- seeds:end -->
-
-<!-- canopy:start -->
-## Prompt Management (Canopy)
-<!-- canopy-onboard-v:1 -->
-
-This project uses [Canopy](https://github.com/jayminwest/canopy) for git-native prompt management.
-
-**At the start of every session**, run:
-```
-cn prime
-```
-
-This injects prompt workflow context: commands, conventions, and common workflows.
-
-**Quick reference:**
-- `cn list` — List all prompts
-- `cn render <name>` — View rendered prompt (resolves inheritance)
-- `cn emit --all` — Render prompts to files
-- `cn update <name>` — Update a prompt (creates new version)
-- `cn sync` — Stage and commit .canopy/ changes
-
-**Do not manually edit emitted files.** Use `cn update` to modify prompts, then `cn emit` to regenerate.
-<!-- canopy:end -->
+27,315 lines, 453 tests, 35 commands, 4 runtime adapters. See `CONTEXT.md` for detailed state and `docs/retro.md` for 38 entries of build history and lessons learned.
 
 ## Critical: Incremental Commits
 
-**Commit after every meaningful change.** Do NOT wait until the end of your session to commit. Sessions can be interrupted by auth expiry, OOM kills, or network issues at any time. Uncommitted work is lost permanently.
+**Commit after every meaningful change.** Sessions can be interrupted at any time. Uncommitted work is lost permanently.
 
-Pattern:
-1. Implement a function or module → `git add <files> && git commit -m "feat: <what>"`  
-2. Fix a compilation error → `git add <files> && git commit -m "fix: <what>"`
-3. Add tests → `git add <files> && git commit -m "test: <what>"`
-4. Continue to next piece
+```bash
+# After every function/module:
+git add <files> && git commit -m "feat: <what>"
+```
 
-If your session dies after step 1, steps 1's work is preserved. If you wait until step 4 to commit, everything is lost.
-
-**Commit every 3-5 minutes of work.** Small, frequent commits. This is a worktree branch — commit history doesn't matter, survival does.
+Commit every 3-5 minutes. Small, frequent commits. This is a worktree branch — history doesn't matter, survival does.

@@ -1,6 +1,6 @@
 # Grove vs Overstory: Full Feature Gap Analysis
 
-**Date:** 2026-03-10
+**Date:** 2026-03-10 (pre-Phase 9A/9B — tmux since eliminated, adapters since added)
 **Grove:** 27,452 lines, 85 Rust files, 454 tests
 **Overstory:** ~150,000+ lines (including tests), 85+ TypeScript files
 

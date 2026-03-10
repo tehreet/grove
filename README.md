@@ -1,127 +1,114 @@
 # grove
 
 [![CI](https://github.com/tehreet/grove/actions/workflows/ci.yml/badge.svg)](https://github.com/tehreet/grove/actions/workflows/ci.yml)
-[![Latest Release](https://img.shields.io/github/v/release/tehreet/grove)](https://github.com/tehreet/grove/releases/latest)
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
 
-Multi-agent orchestration for AI coding agents. A Rust rebuild of [overstory](https://github.com/jayminwest/overstory) — faster, smaller, single-binary.
+Multi-agent orchestration for AI coding agents. A Rust rebuild of [overstory](https://github.com/jayminwest/overstory) — single binary, no tmux, multi-runtime.
 
 ## Install
 
-**One-liner:**
 ```sh
 curl -fsSL https://raw.githubusercontent.com/tehreet/grove/main/install.sh | sh
 ```
 
-**From source:**
+Or from source:
 ```sh
 cargo install --git https://github.com/tehreet/grove
 ```
 
-**Download binary:**
-Download the latest release for your platform from [GitHub Releases](https://github.com/tehreet/grove/releases/latest):
-- `grove-linux-amd64` / `grove-linux-arm64`
-- `grove-darwin-amd64` / `grove-darwin-arm64`
-- `grove-windows-amd64.exe`
-
 ## Quick Start
 
 ```sh
-# Initialize a project
 cd my-project && grove init
 
 # Write a task spec
 grove spec write login-page --body "Build the login page with OAuth support"
 
-# Dispatch a builder agent
+# Dispatch a builder agent (Claude Code)
 grove sling login-page --capability builder --name login-builder \
   --spec .overstory/specs/login-page.md --files src/auth/
 
-# Check agent status
-grove status
+# Or use Codex instead
+grove sling login-page --runtime codex --capability builder --name login-builder \
+  --spec .overstory/specs/login-page.md --files src/auth/
 
-# Open the TUI dashboard
+# Monitor
+grove status
 grove dashboard
 
-# Send mail to an agent
-grove mail send --to login-builder --from operator --subject "Priority change" \
-  --body "Focus on Google OAuth first"
-
-# View costs
-grove costs
+# Merge when done
+grove merge --branch overstory/login-builder/login-page
 ```
 
-## Why Rust?
-
-Grove is a ground-up rewrite of overstory, fixing architectural problems in the original:
+## Why Grove
 
 | | overstory (TypeScript) | grove (Rust) |
 |---|---|---|
+| **Agent spawning** | tmux sessions | Direct child processes |
 | **Runtime** | Bun required | Single binary, no deps |
-| **Database** | bun:sqlite (sync) | rusqlite bundled SQLite |
-| **Concurrency** | Single-threaded coordinator | Tokio async event loop |
-| **Merge safety** | Silent content displacement | `ContentDisplaced` forces handling |
-| **Distribution** | `bun install` | `curl \| sh` |
+| **Runtimes** | Claude, Codex, Gemini, Copilot, Pi, Sapling, OpenCode | Same (4 real + 3 stubs) |
+| **Merge safety** | Silent content displacement | `ContentDisplaced` typed handling |
+| **Nudges** | tmux send-keys (fragile) | Mail-based (reliable) |
+| **Distribution** | `npm install` | `curl \| sh` |
 
-Grove interoperates with overstory — it reads and writes the same `.overstory/` databases, so you can migrate incrementally.
+Grove reads and writes the same `.overstory/` databases as overstory. You can use both on the same project.
 
 ## Commands
 
+35 commands. Run `grove --help` for the full list.
+
 ```
-grove init            Initialize .overstory/ in the current directory
-grove sling           Dispatch a task to an agent worktree
-grove status          Show running agents and system state
-grove dashboard       TUI dashboard (live view)
-grove mail            Send/receive agent mail
-grove coordinator     Start/stop the coordinator daemon
-grove agents          List agent definitions
-grove worktree        Manage git worktrees
-grove merge           Merge an agent's branch
-grove completions     Generate shell completions
-grove update          Refresh managed files from built-in defaults
-grove upgrade         Self-update grove binary
-grove doctor          Check system dependencies
+grove init            Initialize .overstory/
+grove sling           Spawn an agent in a worktree
+grove status          Show running agents
+grove dashboard       TUI dashboard (7 views)
+grove mail            Agent mail system
+grove coordinator     Coordinator daemon
+grove merge           Merge agent branches
+grove monitor         PID lifecycle daemon
+grove costs           Token/cost analysis
+grove doctor          System health check
+grove completions     Shell completions
+grove upgrade         Self-update
 ```
 
-See `grove --help` for the full command list.
+## Runtime Adapters
 
-## Shell Completions
+Grove supports multiple AI coding agents via runtime adapters:
 
-```sh
-# Bash
-grove completions bash > ~/.local/share/bash-completion/completions/grove
+| Runtime | Instruction File | Spawn Command |
+|---------|-----------------|---------------|
+| Claude Code | `.claude/CLAUDE.md` | `claude -p` |
+| Codex (OpenAI) | `AGENTS.md` | `codex exec --dangerously-bypass-approvals-and-sandbox` |
+| Gemini (Google) | `GEMINI.md` | `gemini -p --yolo` |
+| Copilot (GitHub) | `.github/copilot-instructions.md` | `copilot -p --allow-all-tools` |
 
-# Zsh
-grove completions zsh > ~/.zfunc/_grove
-
-# Fish
-grove completions fish > ~/.config/fish/completions/grove.fish
+Per-capability routing lets you use different runtimes for different agent types:
+```yaml
+# .overstory/config.yaml
+runtime:
+  default: claude
+  capabilities:
+    builder: codex
+    lead: claude
 ```
 
 ## Architecture
 
-See [docs/architecture.md](docs/architecture.md) for the full design rationale.
+See [docs/architecture.md](docs/architecture.md).
 
-Key decisions:
-- **No tmux for spawning.** Agents are child processes with stdin/stdout pipes.
-- **Coordinator is a Rust event loop, not an LLM.** LLM called only for task decomposition.
-- **Typed merge outcomes.** `MergeOutcome::ContentDisplaced` fixes overstory's silent content-drop bug.
-- **WAL mode SQLite.** Multiple processes read/write concurrently without locking.
+- **No tmux.** Agents are child processes. PIDs in sessions.db. Monitor daemon detects death via `/proc/<pid>`.
+- **Coordinator is Rust, not LLM.** Event loop daemon. LLM only for one-shot task decomposition.
+- **Typed merge outcomes.** `ContentDisplaced` forces handling of silently dropped content.
+- **WAL mode SQLite.** Concurrent access from multiple agent processes.
 
-## Status
+## Shell Completions
 
-Grove v0.1.0 is feature-complete and interoperates with overstory — it reads and writes the same `.overstory/` databases. You can use `grove` commands alongside `ov` commands on the same project.
-
-**What works today:**
-- All 35 commands (status, sling, mail, coordinator, dashboard, etc.)
-- TUI dashboard with agent cards, cost analytics, timeline, live terminal viewer
-- Full database interop with overstory
-- Shell completions, self-update, install script
-
-**What's in progress:**
-- Native agent spawning without tmux (grove currently delegates to overstory's tmux-based spawning)
-- Coordinator driving multi-agent builds end-to-end (currently uses overstory's LLM coordinator)
-- The `eval` command
+```sh
+grove completions bash > ~/.local/share/bash-completion/completions/grove
+grove completions zsh > ~/.zfunc/_grove
+grove completions fish > ~/.config/fish/completions/grove.fish
+```
 
 ## License
 

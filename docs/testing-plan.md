@@ -1,10 +1,10 @@
-# Grove Comprehensive Test Plan — Post Phase 6.5
+# Grove Comprehensive Test Plan
 
 ## Testing Philosophy
 
 AI-generated unit tests verify AI assumptions. Human E2E testing verifies actual behavior. We need both, and we've been under-investing in the latter.
 
-This plan covers everything in grove as of Phase 6.5 (25,200 lines, 78 files, 430 unit tests). Every test is executable — copy-paste the commands and run them.
+This plan covers grove's testing strategy. Originally written post-Phase 6.5, updated as phases progress. Every test is executable — copy-paste the commands and run them.
 
 ---
 
