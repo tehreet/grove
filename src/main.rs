@@ -378,6 +378,9 @@ struct SlingArgs {
     /// Suppress directive rendering in overlay
     #[arg(long)]
     no_directives: bool,
+    /// Spawn as headless child process (no tmux), overrides runtime default
+    #[arg(long)]
+    headless: bool,
     /// Output result as JSON
     #[arg(long)]
     json: bool,
@@ -1316,6 +1319,7 @@ fn run_command(
             runtime: args.runtime.as_deref(),
             base_branch: args.base_branch.as_deref(),
             no_directives: args.no_directives,
+            headless: args.headless,
             json: args.json || json,
             project_override: project,
         }),

@@ -57,6 +57,7 @@ fn handle_message(
             let body = msg.body.clone();
             let api_key = std::env::var("ANTHROPIC_API_KEY").unwrap_or_default();
             let project_root = ctx.project_root.clone();
+            let coordinator_name = ctx.agent_name.clone();
             eprintln!("[coordinator] dispatch received, decomposing task: {body}");
 
             thread::spawn(move || {
@@ -67,15 +68,18 @@ fn handle_message(
                             "[coordinator] decomposition complete: {} subtasks",
                             result.subtasks.len()
                         );
-                        // Spawn subtasks via grove sling
+                        // Spawn subtasks via grove sling --headless
                         for subtask in &result.subtasks {
                             eprintln!(
                                 "[coordinator] spawning: {} ({})",
                                 subtask.title, subtask.capability
                             );
-                            // In a real implementation, create a task + sling it
-                            // For now, log the intent
-                            let _ = (&project_root, subtask);
+                            spawn_agent_headless(
+                                &subtask.title,
+                                &subtask.capability,
+                                &coordinator_name,
+                                &project_root,
+                            );
                         }
                     }
                     Err(e) => {
@@ -139,6 +143,48 @@ fn handle_merge_entry(entry: &crate::types::MergeEntry, ctx: &LoopContext) {
         }
         Err(e) => {
             eprintln!("[coordinator] merge error: {e}");
+        }
+    }
+}
+
+// ---------------------------------------------------------------------------
+// Agent spawning
+// ---------------------------------------------------------------------------
+
+/// Spawn a headless agent via `grove sling --headless` in the given project root.
+fn spawn_agent_headless(
+    task_id: &str,
+    capability: &str,
+    parent_agent: &str,
+    project_root: &str,
+) {
+    eprintln!("[coordinator] sling --headless: task={task_id} capability={capability}");
+    let output = Command::new("grove")
+        .args([
+            "sling",
+            task_id,
+            "--capability",
+            capability,
+            "--parent",
+            parent_agent,
+            "--headless",
+            "--skip-task-check",
+            "--force-hierarchy",
+        ])
+        .current_dir(project_root)
+        .output();
+
+    match output {
+        Ok(out) if out.status.success() => {
+            let stdout = String::from_utf8_lossy(&out.stdout);
+            eprintln!("[coordinator] sling succeeded: {}", stdout.trim());
+        }
+        Ok(out) => {
+            let stderr = String::from_utf8_lossy(&out.stderr);
+            eprintln!("[coordinator] sling failed for {task_id}: {stderr}");
+        }
+        Err(e) => {
+            eprintln!("[coordinator] sling error for {task_id}: {e}");
         }
     }
 }

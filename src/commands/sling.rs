@@ -170,6 +170,8 @@ pub struct SlingOptions<'a> {
     pub runtime: Option<&'a str>,
     pub base_branch: Option<&'a str>,
     pub no_directives: bool,
+    /// Force headless spawn (no tmux), overriding runtime default
+    pub headless: bool,
     pub json: bool,
     pub project_override: Option<&'a Path>,
 }
@@ -433,6 +435,7 @@ pub fn execute(opts: SlingOptions<'_>) -> Result<(), String> {
         no_directives: opts.no_directives,
         skip_review: opts.skip_review,
         max_agents_override: opts.dispatch_max_agents,
+        headless: opts.headless,
         json: opts.json,
     });
 
@@ -467,6 +470,8 @@ struct DoSpawnContext<'a> {
     no_directives: bool,
     skip_review: bool,
     max_agents_override: Option<u32>,
+    /// If true, force headless spawn regardless of runtime.is_headless()
+    headless: bool,
     json: bool,
 }
 
@@ -623,8 +628,8 @@ fn do_spawn(ctx: DoSpawnContext<'_>) -> Result<(), String> {
     fs::create_dir_all(&agent_log_dir)
         .map_err(|e| format!("Failed to create log dir: {e}"))?;
 
-    // Spawn the agent
-    let (pid, tmux_session) = if runtime.is_headless() {
+    // Spawn the agent — headless flag overrides runtime default
+    let (pid, tmux_session) = if ctx.headless || runtime.is_headless() {
         spawn_headless(ctx.agent_name, ctx.task_id, ctx.worktree_path, &agent_log_dir, runtime.as_ref(), &resolved_model, ctx.parent_agent, ctx.depth)?
     } else {
         spawn_tmux(&ctx.config.project.name, ctx.agent_name, ctx.capability, ctx.task_id, ctx.worktree_path, runtime.as_ref(), &resolved_model, ctx.parent_agent, ctx.depth)?
@@ -682,7 +687,7 @@ fn do_spawn(ctx: DoSpawnContext<'_>) -> Result<(), String> {
             )
         );
     } else {
-        let heading = if runtime.is_headless() {
+        let heading = if ctx.headless || runtime.is_headless() {
             "Agent launched (headless)"
         } else {
             "Agent launched"
