@@ -1,7 +1,6 @@
-//! Merge resolver — tiers 1 (clean merge) and 2 (auto-resolve).
+//! Merge resolver — tiers 1 (clean merge) and 2-4 (auto/AI resolve).
 //!
-//! Port of `reference/merge-resolver.ts` (tiers 1-2 only).
-//! Tier 3 (AI-resolve) and tier 4 (reimagine) are not yet implemented.
+//! Port of `reference/merge-resolver.ts`.
 
 use std::fs;
 use std::process::Command;
@@ -359,6 +358,193 @@ fn try_auto_resolve(
     }
 }
 
+fn run_print_command(
+    print_cmd_builder: &dyn Fn(&str) -> Vec<String>,
+    prompt: &str,
+) -> Result<String, String> {
+    let argv = print_cmd_builder(prompt);
+    if argv.is_empty() {
+        return Err("print command builder returned empty argv".to_string());
+    }
+
+    let output = Command::new(&argv[0])
+        .args(&argv[1..])
+        .output()
+        .map_err(|e| format!("failed to run print command: {e}"))?;
+    if !output.status.success() {
+        return Err(format!(
+            "print command exited with status {}",
+            output.status.code().unwrap_or(-1)
+        ));
+    }
+
+    let resolved = String::from_utf8_lossy(&output.stdout)
+        .trim_end()
+        .to_string();
+    if resolved.is_empty() {
+        return Err("print command returned empty output".to_string());
+    }
+
+    Ok(resolved)
+}
+
+fn write_resolved_file(repo_root: &str, file: &str, resolved: &str) -> Result<(), String> {
+    if resolved.contains("<<<<<<< ") {
+        return Err("resolved content still contains conflict markers".to_string());
+    }
+
+    let full_path = format!("{repo_root}/{file}");
+    fs::write(&full_path, resolved).map_err(|e| format!("Failed to write {file}: {e}"))?;
+    run_git(repo_root, &["add", file])?;
+    Ok(())
+}
+
+fn try_ai_resolve(
+    conflict_files: &[String],
+    repo_root: &str,
+    print_cmd_builder: &dyn Fn(&str) -> Vec<String>,
+) -> Result<AutoResolveResult, String> {
+    let mut remaining = Vec::new();
+    let mut resolutions = Vec::new();
+
+    for file in conflict_files {
+        let full_path = format!("{repo_root}/{file}");
+        let content = match fs::read_to_string(&full_path) {
+            Ok(content) => content,
+            Err(e) => {
+                eprintln!("Warning: could not read {file}: {e}");
+                remaining.push(file.clone());
+                continue;
+            }
+        };
+
+        let prompt = format!(
+            "You are a merge resolver. The following file has git conflict markers. Resolve the conflicts by keeping the best of both sides. Return ONLY the resolved file content, no explanation, no markdown fences, just the raw file content.\n\nFile: {file}\n\n{content}"
+        );
+
+        let resolved = match run_print_command(print_cmd_builder, &prompt) {
+            Ok(resolved) => resolved,
+            Err(err) => {
+                eprintln!("Warning: AI resolve failed for {file}: {err}");
+                remaining.push(file.clone());
+                continue;
+            }
+        };
+
+        if let Err(err) = write_resolved_file(repo_root, file, &resolved) {
+            eprintln!("Warning: AI resolve failed for {file}: {err}");
+            remaining.push(file.clone());
+            continue;
+        }
+
+        resolutions.push(ConflictResolution {
+            file: file.clone(),
+            strategy: "ai-resolve".to_string(),
+            displaced_hunks: vec![],
+        });
+    }
+
+    if remaining.is_empty() {
+        run_git(repo_root, &["commit", "--no-edit"])?;
+        Ok(AutoResolveResult {
+            success: true,
+            remaining_conflicts: vec![],
+            resolutions,
+        })
+    } else {
+        Ok(AutoResolveResult {
+            success: false,
+            remaining_conflicts: remaining,
+            resolutions,
+        })
+    }
+}
+
+fn try_reimagine(
+    conflict_files: &[String],
+    repo_root: &str,
+    print_cmd_builder: &dyn Fn(&str) -> Vec<String>,
+    branch_name: &str,
+) -> Result<AutoResolveResult, String> {
+    let mut remaining = Vec::new();
+    let mut resolutions = Vec::new();
+
+    for file in conflict_files {
+        let canonical = match run_git(repo_root, &["show", &format!("HEAD:{file}")]) {
+            Ok(output) if output.exit_code == 0 => output.stdout,
+            Ok(output) => {
+                eprintln!(
+                    "Warning: could not read canonical version for {file}: {}",
+                    output.stderr.trim()
+                );
+                remaining.push(file.clone());
+                continue;
+            }
+            Err(err) => {
+                eprintln!("Warning: could not read canonical version for {file}: {err}");
+                remaining.push(file.clone());
+                continue;
+            }
+        };
+        let incoming = match run_git(repo_root, &["show", &format!("{branch_name}:{file}")]) {
+            Ok(output) if output.exit_code == 0 => output.stdout,
+            Ok(output) => {
+                eprintln!(
+                    "Warning: could not read incoming version for {file}: {}",
+                    output.stderr.trim()
+                );
+                remaining.push(file.clone());
+                continue;
+            }
+            Err(err) => {
+                eprintln!("Warning: could not read incoming version for {file}: {err}");
+                remaining.push(file.clone());
+                continue;
+            }
+        };
+
+        let prompt = format!(
+            "You are merging two versions of a file. Rewrite it to incorporate all changes from both versions. Return ONLY the file content.\n\nCANONICAL VERSION:\n{canonical}\n\nINCOMING VERSION:\n{incoming}"
+        );
+
+        let resolved = match run_print_command(print_cmd_builder, &prompt) {
+            Ok(resolved) => resolved,
+            Err(err) => {
+                eprintln!("Warning: reimagine failed for {file}: {err}");
+                remaining.push(file.clone());
+                continue;
+            }
+        };
+
+        if let Err(err) = write_resolved_file(repo_root, file, &resolved) {
+            eprintln!("Warning: reimagine failed for {file}: {err}");
+            remaining.push(file.clone());
+            continue;
+        }
+
+        resolutions.push(ConflictResolution {
+            file: file.clone(),
+            strategy: "reimagine".to_string(),
+            displaced_hunks: vec![],
+        });
+    }
+
+    if remaining.is_empty() {
+        run_git(repo_root, &["commit", "--no-edit"])?;
+        Ok(AutoResolveResult {
+            success: true,
+            remaining_conflicts: vec![],
+            resolutions,
+        })
+    } else {
+        Ok(AutoResolveResult {
+            success: false,
+            remaining_conflicts: remaining,
+            resolutions,
+        })
+    }
+}
+
 // ---------------------------------------------------------------------------
 // Public resolver API
 // ---------------------------------------------------------------------------
@@ -371,11 +557,21 @@ pub struct MergeResolverOptions {
 
 pub struct MergeResolver {
     options: MergeResolverOptions,
+    print_runtime: Option<Box<dyn crate::runtimes::AgentRuntime>>,
 }
 
 impl MergeResolver {
     pub fn new(options: MergeResolverOptions) -> Self {
-        Self { options }
+        Self {
+            options,
+            print_runtime: None,
+        }
+    }
+
+    #[allow(dead_code)]
+    pub fn with_runtime(mut self, rt: Box<dyn crate::runtimes::AgentRuntime>) -> Self {
+        self.print_runtime = Some(rt);
+        self
     }
 
     pub fn resolve(
@@ -384,8 +580,6 @@ impl MergeResolver {
         canonical_branch: &str,
         repo_root: &str,
     ) -> Result<MergeOutcome, String> {
-        let _ = &self.options; // options reserved for future tiers
-
         // 1. Ensure we're on the canonical branch
         let head_out = run_git(repo_root, &["symbolic-ref", "--short", "HEAD"])?;
         let current_branch = head_out.stdout.trim().to_string();
@@ -472,7 +666,134 @@ impl MergeResolver {
             });
         }
 
-        // 7. All tiers failed — abort
+        // 7. Tier 3: AI resolve (if enabled)
+        if self.options.ai_resolve_enabled {
+            if let Some(ref rt) = self.print_runtime {
+                let build_print = |prompt: &str| rt.build_print_command(prompt, None);
+                let tier3 = try_ai_resolve(&tier2.remaining_conflicts, repo_root, &build_print)?;
+                if tier3.success {
+                    if stashed {
+                        run_git(repo_root, &["stash", "pop"])?;
+                    }
+                    let result = MergeResult {
+                        entry: MergeEntry {
+                            status: MergeEntryStatus::Merged,
+                            resolved_tier: Some(ResolutionTier::AiResolve),
+                            ..entry.clone()
+                        },
+                        success: true,
+                        tier: ResolutionTier::AiResolve,
+                        conflict_files: vec![],
+                        error_message: None,
+                    };
+                    let mut resolutions = tier2.resolutions;
+                    resolutions.extend(tier3.resolutions);
+                    return Ok(MergeOutcome {
+                        result,
+                        resolutions,
+                        auto_committed_state_files: auto_committed,
+                        stashed,
+                    });
+                }
+
+                if self.options.reimagine_enabled {
+                    let tier4 = try_reimagine(
+                        &tier3.remaining_conflicts,
+                        repo_root,
+                        &build_print,
+                        &entry.branch_name,
+                    )?;
+                    if tier4.success {
+                        if stashed {
+                            run_git(repo_root, &["stash", "pop"])?;
+                        }
+                        let result = MergeResult {
+                            entry: MergeEntry {
+                                status: MergeEntryStatus::Merged,
+                                resolved_tier: Some(ResolutionTier::Reimagine),
+                                ..entry.clone()
+                            },
+                            success: true,
+                            tier: ResolutionTier::Reimagine,
+                            conflict_files: vec![],
+                            error_message: None,
+                        };
+                        let mut resolutions = tier2.resolutions;
+                        resolutions.extend(tier3.resolutions);
+                        resolutions.extend(tier4.resolutions);
+                        return Ok(MergeOutcome {
+                            result,
+                            resolutions,
+                            auto_committed_state_files: auto_committed,
+                            stashed,
+                        });
+                    }
+
+                    let remaining = tier4.remaining_conflicts;
+                    let mut resolutions = tier2.resolutions;
+                    resolutions.extend(tier3.resolutions);
+                    resolutions.extend(tier4.resolutions);
+                    run_git(repo_root, &["merge", "--abort"])?;
+                    if stashed {
+                        run_git(repo_root, &["stash", "pop"])?;
+                    }
+
+                    let result = MergeResult {
+                        entry: MergeEntry {
+                            status: MergeEntryStatus::Conflict,
+                            resolved_tier: None,
+                            ..entry.clone()
+                        },
+                        success: false,
+                        tier: ResolutionTier::Reimagine,
+                        conflict_files: remaining.clone(),
+                        error_message: Some(format!(
+                            "Unresolved conflicts in {} file(s): {}",
+                            remaining.len(),
+                            remaining.join(", ")
+                        )),
+                    };
+                    return Ok(MergeOutcome {
+                        result,
+                        resolutions,
+                        auto_committed_state_files: auto_committed,
+                        stashed,
+                    });
+                }
+
+                let remaining = tier3.remaining_conflicts;
+                let mut resolutions = tier2.resolutions;
+                resolutions.extend(tier3.resolutions);
+                run_git(repo_root, &["merge", "--abort"])?;
+                if stashed {
+                    run_git(repo_root, &["stash", "pop"])?;
+                }
+
+                let result = MergeResult {
+                    entry: MergeEntry {
+                        status: MergeEntryStatus::Conflict,
+                        resolved_tier: None,
+                        ..entry.clone()
+                    },
+                    success: false,
+                    tier: ResolutionTier::AiResolve,
+                    conflict_files: remaining.clone(),
+                    error_message: Some(format!(
+                        "Unresolved conflicts in {} file(s): {}",
+                        remaining.len(),
+                        remaining.join(", ")
+                    )),
+                };
+                return Ok(MergeOutcome {
+                    result,
+                    resolutions,
+                    auto_committed_state_files: auto_committed,
+                    stashed,
+                });
+            }
+        }
+
+        // 8. All tiers failed — abort
         run_git(repo_root, &["merge", "--abort"])?;
         if stashed {
             run_git(repo_root, &["stash", "pop"])?;
@@ -572,5 +893,41 @@ mod tests {
         let (resolved, hunks) = result.unwrap();
         assert_eq!(resolved, "new content\n");
         assert!(hunks.is_empty());
+    }
+
+    #[test]
+    fn test_try_ai_resolve_graceful_on_empty_output() {
+        let repo = tempfile::tempdir().unwrap();
+        let path = repo.path().join("conflict.txt");
+        fs::write(
+            &path,
+            "<<<<<<< HEAD\ncanonical\n=======\nincoming\n>>>>>>> branch\n",
+        )
+        .unwrap();
+
+        let result = try_ai_resolve(
+            &[String::from("conflict.txt")],
+            repo.path().to_str().unwrap(),
+            &|_| vec!["sh".to_string(), "-c".to_string(), "printf ''".to_string()],
+        )
+        .unwrap();
+
+        assert!(!result.success);
+        assert_eq!(result.remaining_conflicts, vec!["conflict.txt"]);
+    }
+
+    #[test]
+    fn test_try_reimagine_graceful_on_command_failure() {
+        let repo = tempfile::tempdir().unwrap();
+        let result = try_reimagine(
+            &[String::from("conflict.txt")],
+            repo.path().to_str().unwrap(),
+            &|_| vec!["this-command-does-not-exist".to_string()],
+            "feature",
+        )
+        .unwrap();
+
+        assert!(!result.success);
+        assert_eq!(result.remaining_conflicts, vec!["conflict.txt"]);
     }
 }

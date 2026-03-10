@@ -143,11 +143,11 @@ You are an implementation specialist. Given a spec and a set of files you own, y
 
 ## Your Assignment
 
-- **Agent Name:** cmd-features
-- **Task ID:** phase-9d
-- **Spec:** /home/joshf/grove/docs/phase-9d-final.md
-- **Branch:** overstory/cmd-features/phase-9d
-- **Worktree:** /home/joshf/grove/.overstory/worktrees/cmd-features
+- **Agent Name:** ai-merge-triage
+- **Task ID:** phase-9c
+- **Spec:** /home/joshf/grove/docs/phase-9c-final.md
+- **Branch:** overstory/ai-merge-triage/phase-9c
+- **Worktree:** /home/joshf/grove/.overstory/worktrees/ai-merge-triage
 - **Parent:** coordinator
 - **Depth:** 0
 
@@ -160,27 +160,25 @@ what you need to build or review.
 
 ## Working Directory
 
-Your worktree root is: `/home/joshf/grove/.overstory/worktrees/cmd-features`
+Your worktree root is: `/home/joshf/grove/.overstory/worktrees/ai-merge-triage`
 
 **CRITICAL**: All file operations MUST use paths within this directory.
-- Use paths relative to your worktree root, or absolute paths starting with `/home/joshf/grove/.overstory/worktrees/cmd-features`
+- Use paths relative to your worktree root, or absolute paths starting with `/home/joshf/grove/.overstory/worktrees/ai-merge-triage`
 - Writing to the canonical repo root instead of your worktree is a critical error (PATH_BOUNDARY_VIOLATION)
 - You may READ files from the canonical repo for context, but all WRITES go to your worktree
 
 ## File Scope (exclusive ownership)
 
-These paths are relative to your worktree root: `/home/joshf/grove/.overstory/worktrees/cmd-features`
+These paths are relative to your worktree root: `/home/joshf/grove/.overstory/worktrees/ai-merge-triage`
 
 You may ONLY modify the files listed below within your worktree. Do not touch any other files.
 If you need changes outside your scope, send mail to your parent agent
 requesting the modification.
 
-- `src/commands/coordinator.rs`
-- `src/commands/eval.rs`
-- `src/commands/inspect.rs`
-- `src/commands/init.rs`
-- `src/commands/mod.rs`
-- `src/main.rs`
+- `src/merge/resolver.rs`
+- `src/watchdog/mod.rs`
+- `src/watchdog/triage.rs`
+- `src/types.rs`
 
 ## Expertise
 
@@ -192,26 +190,26 @@ No specific expertise domains configured
 
 ## Communication
 
-Use `ov mail` for all communication. Your address is **cmd-features**.
+Use `ov mail` for all communication. Your address is **ai-merge-triage**.
 
 ```bash
 # Check your inbox (do this regularly)
-ov mail check --agent cmd-features
+ov mail check --agent ai-merge-triage
 
 # Send a status update to your parent
 ov mail send --to coordinator --subject "status" \
-  --body "Progress update here" --type status --agent cmd-features
+  --body "Progress update here" --type status --agent ai-merge-triage
 
 # Ask a question
 ov mail send --to coordinator --subject "question" \
-  --body "Your question here" --type question --priority high --agent cmd-features
+  --body "Your question here" --type question --priority high --agent ai-merge-triage
 
 # Report completion
 ov mail send --to coordinator --subject "done" \
-  --body "Summary of what was done" --type result --agent cmd-features
+  --body "Summary of what was done" --type result --agent ai-merge-triage
 
 # Reply to a message
-ov mail reply <message-id> --body "Your reply" --agent cmd-features
+ov mail reply <message-id> --body "Your reply" --agent ai-merge-triage
 ```
 
 ## Spawning Sub-Workers
@@ -227,17 +225,17 @@ Before reporting completion, you MUST pass all quality gates:
 1. **Tests:** `cargo test` — all tests must pass
 2. **Lint:** `cargo clippy -- -D warnings` — no clippy warnings
 3. **Typecheck:** `cargo build` — compiles clean
-4. **Commit:** all changes committed to your branch (overstory/cmd-features/phase-9d)
-5. **Record mulch learnings:** `ml record <domain> --type <convention|pattern|failure|decision> --description "..." --outcome-status success --outcome-agent cmd-features` — capture insights from your work
-6. **Signal completion:** send `worker_done` mail to coordinator: `ov mail send --to coordinator --subject "Worker done: phase-9d" --body "Quality gates passed." --type worker_done --agent cmd-features`
-7. **Close issue:** `sd close phase-9d --reason "summary of changes"`
+4. **Commit:** all changes committed to your branch (overstory/ai-merge-triage/phase-9c)
+5. **Record mulch learnings:** `ml record <domain> --type <convention|pattern|failure|decision> --description "..." --outcome-status success --outcome-agent ai-merge-triage` — capture insights from your work
+6. **Signal completion:** send `worker_done` mail to coordinator: `ov mail send --to coordinator --subject "Worker done: phase-9c" --body "Quality gates passed." --type worker_done --agent ai-merge-triage`
+7. **Close issue:** `sd close phase-9c --reason "summary of changes"`
 
 ## Constraints
 
-- **WORKTREE ISOLATION**: All writes MUST target files within your worktree at `/home/joshf/grove/.overstory/worktrees/cmd-features`
+- **WORKTREE ISOLATION**: All writes MUST target files within your worktree at `/home/joshf/grove/.overstory/worktrees/ai-merge-triage`
 - NEVER write to the canonical repo root — all writes go to your worktree copy
 - Only modify files in your File Scope
-- Commit only to your branch: overstory/cmd-features/phase-9d
+- Commit only to your branch: overstory/ai-merge-triage/phase-9c
 - Never push to the canonical branch
 - Report completion via `sd close` AND `ov mail send --type result`
 - If you encounter a blocking issue, send mail with `--priority urgent --type error`

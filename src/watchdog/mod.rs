@@ -11,6 +11,8 @@ use std::time::Duration;
 use crate::db::sessions::SessionStore;
 use crate::types::{AgentState, WatchdogConfig};
 
+pub mod triage;
+
 // ---------------------------------------------------------------------------
 // Agent health
 // ---------------------------------------------------------------------------
@@ -134,11 +136,12 @@ pub fn kill_agent(
 /// - Stale → nudge
 /// - Zombie → kill
 /// - Dead → mark completed (the agent exited on its own)
-pub fn poll_once(
+fn poll_once_with_print(
     store: &SessionStore,
     config: &WatchdogConfig,
     project_root: &Path,
     now_ms: u64,
+    print_cmd_opt: Option<&[String]>,
 ) -> Vec<(String, HealthStatus)> {
     let active = match store.get_active() {
         Ok(sessions) => sessions,
@@ -166,7 +169,29 @@ pub fn poll_once(
             }
             HealthStatus::Zombie => {
                 if config.tier0_enabled {
-                    let _ = kill_agent(session, store, project_root);
+                    let should_kill = if config.tier1_enabled {
+                        if let Some(print_cmd) = print_cmd_opt {
+                            let verdict =
+                                triage::triage_agent(&session.agent_name, project_root, print_cmd);
+                            match verdict {
+                                triage::TriageVerdict::LongRunning => false,
+                                triage::TriageVerdict::Recoverable
+                                | triage::TriageVerdict::Unknown => {
+                                    let _ = nudge_agent(&session.agent_name, project_root);
+                                    false
+                                }
+                                triage::TriageVerdict::Fatal => true,
+                            }
+                        } else {
+                            true
+                        }
+                    } else {
+                        true
+                    };
+
+                    if should_kill {
+                        let _ = kill_agent(session, store, project_root);
+                    }
                 }
                 results.push((session.agent_name.clone(), HealthStatus::Zombie));
             }
@@ -178,6 +203,15 @@ pub fn poll_once(
     }
 
     results
+}
+
+pub fn poll_once(
+    store: &SessionStore,
+    config: &WatchdogConfig,
+    project_root: &Path,
+    now_ms: u64,
+) -> Vec<(String, HealthStatus)> {
+    poll_once_with_print(store, config, project_root, now_ms, None)
 }
 
 /// Run the tier-0 watchdog poll loop indefinitely.
@@ -192,7 +226,7 @@ pub fn run_tier0(store: &SessionStore, config: &WatchdogConfig, project_root: &P
 
     loop {
         let now_ms = chrono::Utc::now().timestamp_millis() as u64;
-        poll_once(store, config, project_root, now_ms);
+        poll_once_with_print(store, config, project_root, now_ms, None);
         std::thread::sleep(interval);
     }
 }
