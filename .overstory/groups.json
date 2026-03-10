@@ -145,5 +145,15 @@
 		"status": "active",
 		"createdAt": "2026-03-10T04:48:48.353Z",
 		"completedAt": null
+	},
+	{
+		"id": "group-b5ec82b6",
+		"name": "phase-6.6-tui-polish",
+		"memberIssueIds": [
+			"phase-6.6"
+		],
+		"status": "active",
+		"createdAt": "2026-03-10T06:08:32.253Z",
+		"completedAt": null
 	}
 ]
