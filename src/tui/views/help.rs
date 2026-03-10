@@ -44,6 +44,7 @@ pub fn render(f: &mut Frame, _app: &App) {
             ("tab / shift+tab", "cycle panel focus"),
             ("↑↓ / j k", "navigate within panel"),
             ("enter", "open agent detail"),
+            ("t", "open terminal view"),
             ("/", "filter agent list"),
             ("r", "force refresh"),
             ("a", "toggle completed agents"),
@@ -53,12 +54,29 @@ pub fn render(f: &mut Frame, _app: &App) {
         ("Agent Detail", vec![
             ("esc / backspace", "return to overview"),
             ("↑↓ / j k", "scroll"),
+            ("t", "open terminal view"),
         ]),
         ("Event Log", vec![
             ("esc / q", "return to overview"),
             ("↑↓ / j k", "scroll"),
             ("g", "top"),
             ("G", "bottom"),
+        ]),
+        ("Terminal View", vec![
+            ("esc", "return to overview"),
+            ("↑↓ / j k", "scroll"),
+            ("g", "top"),
+            ("G", "bottom"),
+            ("f", "toggle fullscreen"),
+            ("s", "enter split view"),
+            ("q", "quit"),
+        ]),
+        ("Split Terminal", vec![
+            ("esc", "return to overview"),
+            ("tab", "next panel"),
+            ("enter", "open full terminal"),
+            ("1-4", "focus panel by number"),
+            ("q", "quit"),
         ]),
         ("Anywhere", vec![
             ("ctrl+c", "force quit"),

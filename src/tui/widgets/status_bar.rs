@@ -52,6 +52,25 @@ pub fn render(f: &mut Frame, app: &App, area: Rect) {
                 key("q"), label("quit"),
             ]
         }
+        View::Terminal => {
+            vec![
+                key("esc"), label("back"), sep.clone(),
+                key("↑↓/jk"), label("scroll"), sep.clone(),
+                key("g/G"), label("top/bottom"), sep.clone(),
+                key("f"), label("fullscreen"), sep.clone(),
+                key("s"), label("split view"), sep.clone(),
+                key("q"), label("quit"),
+            ]
+        }
+        View::SplitTerminal => {
+            vec![
+                key("esc"), label("back"), sep.clone(),
+                key("tab"), label("next panel"), sep.clone(),
+                key("↵"), label("open full"), sep.clone(),
+                key("1-4"), label("focus panel"), sep.clone(),
+                key("q"), label("quit"),
+            ]
+        }
     };
 
     let bar = Paragraph::new(Line::from(spans));
