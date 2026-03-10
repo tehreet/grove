@@ -360,3 +360,90 @@ if grep -rn "<<<<<<< " src/ --include="*.rs" 2>/dev/null; then
     exit 1
 fi
 ```
+
+---
+
+### RETRO-024: New VPS missing toolchain — no migration checklist
+
+**What happened:** Migrated from DigitalOcean to Hetzner CCX33. The new box had grove and overstory cloned from GitHub, but was missing: Rust toolchain, Go toolchain, Claude Code, tmux server, SSH keepalives, PATH configuration, API keys in environment. Each missing piece was discovered one-at-a-time through trial and error.
+
+**Root cause:** No migration checklist exists. Each tool was installed reactively as something failed. The old box's configuration was built up over weeks of incremental fixes that were never documented as a setup script.
+
+**Lesson:** Any infrastructure that takes more than 1 command to set up needs a setup script or at minimum a documented checklist. The VPS is disposable — we should be able to `curl | sh` a new one into working state in under 5 minutes.
+
+**Proposed fix:** Create `scripts/setup-vps.sh` in the grove repo that installs: Rust, Go, Bun, Claude Code, tmux, SSH keepalive config, PATH in .profile and .bashrc, API keys from env vars, overstory linked globally, ov-tui binary built. Run this on any new box.
+
+---
+
+### RETRO-025: Claude Code bypass-permissions dialog blocks headless agent spawning
+
+**What happened:** On the new VPS, `ov sling` launched agents that immediately went zombie. The tmux session was created but Claude Code showed a "Bypass Permissions" confirmation dialog and waited for interactive input. The agent never started working.
+
+**Root cause:** Claude Code's `--dangerously-skip-permissions` flag requires a one-time interactive acceptance on each new machine. The old VPS had this cached. The new VPS did not. Overstory's agent spawner doesn't handle this dialog.
+
+**Lesson:** Any tool that requires interactive first-run setup will break headless agent spawning. The setup checklist (RETRO-024) must include "run `claude --dangerously-skip-permissions` interactively once and accept the dialog."
+
+**Proposed fix:** Add to VPS setup script: `echo "2" | claude --dangerously-skip-permissions -p "echo hello"` or whatever command auto-accepts the dialog. Also: grove's native spawner should detect this state and report it clearly instead of silently dying.
+
+---
+
+### RETRO-026: tmux environment doesn't inherit shell PATH — agents can't find cargo
+
+**What happened:** Agents spawned by overstory via tmux couldn't find `cargo` because tmux sessions inherit the system PATH, not the user's shell PATH. `~/.cargo/bin` was in `.bashrc` but not in tmux's default environment.
+
+**Root cause:** tmux starts with the system-level PATH. `.bashrc` only runs for interactive bash shells. Overstory spawns tmux sessions that run `claude ...` directly — no interactive shell, no `.bashrc` sourcing.
+
+**Lesson:** All required paths must be set in: (1) `.profile` for login shells, (2) `.bashrc` for interactive shells, (3) tmux global environment for tmux sessions, (4) systemd service environment for the MCP bridge. Four places for the same PATH.
+
+**Proposed fix:** Single source of truth: create `~/.grove-env` with all exports, then source it from .profile, .bashrc, and tmux.conf. Or: grove's native spawner sets PATH explicitly when spawning child processes, eliminating tmux environment issues entirely.
+
+---
+
+### RETRO-027: overstory's `orchestrator` vs grove's `coordinator` naming mismatch
+
+**What happened:** `grove status --json` reported `unreadMailCount: 2` while `ov status --json` reported `0`. Debugging revealed overstory counts unread mail for `to_agent = 'orchestrator'` (its default), while grove was counting all unread mail. After fixing grove to filter by a specific agent, we initially used `"coordinator"` (grove's term) instead of `"orchestrator"` (overstory's term). The counts still didn't match until we used `"orchestrator"`.
+
+**Root cause:** Naming inconsistency between the two systems. Overstory calls the top-level agent "orchestrator." Grove's architecture docs and coordinator daemon use "coordinator." Both terms exist in the codebase. The mail system uses overstory's naming because it reads overstory's database.
+
+**Lesson:** When building a compatible replacement, you must use the EXACT same naming as the original for any shared data. Internal naming can differ, but database fields, mail recipients, and JSON keys must be identical. "Close enough" naming causes subtle interop bugs that are hard to trace.
+
+**Proposed fix:** Document the naming mapping: overstory "orchestrator" = grove "coordinator". In all database queries, use overstory's naming. In grove's UI and docs, use grove's naming but translate at the DB boundary.
+
+---
+
+### RETRO-028: Theme direction sent as mail after builders already committed
+
+**What happened:** We decided on a vibrant pink/purple theme (Dracula + charm.sh style) for the TUI. I sent mail to the builders with the new color palette. But all three builders had already committed their work and were completing by the time the mail arrived. The TUI shipped with the default green/amber theme.
+
+**Root cause:** Design decisions made during the build can't reach agents that have already finished. Mail is async and agents check it between tool calls, but if they're in their final commit/cleanup phase, they won't process new mail.
+
+**Lesson:** Design decisions must be in the spec BEFORE dispatch, not sent as corrections mid-build. If a design change is needed during a build, it must be a follow-up task, not a mail to agents who may already be done.
+
+**Proposed fix:** For Phase 6.6: put the theme spec directly in `docs/phase-6.6.md` before dispatch. Never rely on mail for design direction.
+
+---
+
+### RETRO-029: `run list` appears broken but isn't — overstory doesn't populate runs table
+
+**What happened:** `grove run list` shows "No runs recorded yet" despite multiple Phase builds completing with visible run IDs. We logged this as a bug (RETRO-018). Investigation revealed the `runs` table in sessions.db is empty — overstory creates the table but never inserts records. `ov run list` has the same behavior.
+
+**Root cause:** Overstory's run tracking is incomplete. Run IDs exist as metadata on sessions (`run_id` column) but the `runs` table that `run list` queries is never populated. Both grove and overstory have this gap.
+
+**Lesson:** Before logging a grove bug, verify whether overstory has the same behavior. If both systems behave the same way, it's a shared design gap, not a grove regression. Testing should include cross-referencing `ov <command>` output.
+
+**Proposed fix:** Either: (1) populate the runs table from session data (derive runs from distinct run_id values in sessions), or (2) have `run list` query sessions grouped by run_id instead of the runs table. Option 2 is simpler and works retroactively.
+
+---
+
+### RETRO-030: Phase 6.5 was the most successful multi-agent build — what went right
+
+**What happened:** Phase 6.5 deployed 3 leads + 4 builders (7 agents), all completed in ~11 minutes. All produced working code. Merge conflicts were limited to one file (status_bar.rs). The TUI features work: help overlay, mail reader, rich feed, terminal viewer, split view, system stats, git branch display. 430 tests pass.
+
+**What went right:**
+1. **Explicit file ownership in the dispatch message** — "Only ONE builder touches app.rs" prevented the RETRO-008 merge catastrophe from Phase 4
+2. **Single-file-per-builder pattern** — each builder created new files (terminal.rs, split_terminal.rs, mail_reader.rs) rather than modifying shared files
+3. **Incremental commits** — every builder committed before completion, so no work was lost when auth expired
+4. **Spec as source of truth** — the spec in `docs/phase-6.5.md` was comprehensive enough that builders didn't need clarification
+5. **Dedicated Hetzner box** — 8 dedicated cores handled 4 parallel cargo builds without the load issues from RETRO-006
+
+**Lesson:** The multi-agent pattern works well when: (a) each builder owns distinct files, (b) one builder owns all shared integration points, (c) the spec is complete before dispatch, (d) the hardware can handle parallel compilation. Replicate this pattern for all future phases.
