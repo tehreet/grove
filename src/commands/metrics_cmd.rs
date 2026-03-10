@@ -193,7 +193,7 @@ mod tests {
         capability: &str,
         duration_ms: i64,
         completed: bool,
-        exit_code: Option<i32>,
+        exit_code: Option<i64>,
     ) -> SessionMetrics {
         SessionMetrics {
             agent_name: agent.to_string(),

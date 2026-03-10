@@ -59,8 +59,8 @@ pub fn execute(
         since,
         until,
         level: parsed_level,
-        limit: limit.map(|l| l as usize),
-        ..Default::default()
+        limit,
+
     };
 
     let store = EventStore::new(&events_db).map_err(|e| e.to_string())?;

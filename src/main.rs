@@ -190,7 +190,7 @@ enum Commands {
     Hooks(HooksArgs),
 
     /// Monitor agents in real time
-    Monitor(PassthroughArgs),
+    Monitor(MonitorArgs),
 
     /// Mail system (send/check/list/read/reply)
     Mail(MailArgs),
@@ -211,16 +211,16 @@ enum Commands {
     Log(LogArgs),
 
     /// Query NDJSON logs across agents
-    Logs(PassthroughArgs),
+    Logs(LogsArgs),
 
     /// Watch agents in real time
-    Watch(PassthroughArgs),
+    Watch(WatchArgs),
 
     /// Chronological event timeline for agent or task
     Trace(TraceArgs),
 
     /// Manage ecosystem tools (mulch, seeds, canopy)
-    Ecosystem(PassthroughArgs),
+    Ecosystem(EcosystemArgs),
 
     /// Stream live event feed
     Feed(FeedArgs),
@@ -229,7 +229,7 @@ enum Commands {
     Errors(ErrorsArgs),
 
     /// Replay agent sessions
-    Replay(PassthroughArgs),
+    Replay(ReplayArgs),
 
     /// Manage runs (coordinator session groupings)
     Run(RunArgs),
@@ -238,7 +238,7 @@ enum Commands {
     Costs(CostsArgs),
 
     /// Show session metrics
-    Metrics(PassthroughArgs),
+    Metrics(MetricsArgs),
 
     /// Run evaluations
     Eval(PassthroughArgs),
@@ -912,6 +912,147 @@ struct FeedArgs {
 }
 
 #[derive(Args)]
+struct LogsArgs {
+    /// Filter by agent name
+    #[arg(long)]
+    agent: Option<String>,
+    /// Filter by log level (debug|info|warn|error)
+    #[arg(long)]
+    level: Option<String>,
+    /// Start time (ISO8601 or relative like "1h")
+    #[arg(long)]
+    since: Option<String>,
+    /// End time (ISO8601)
+    #[arg(long)]
+    until: Option<String>,
+    /// Max number of events to show
+    #[arg(long)]
+    limit: Option<i64>,
+    /// Output as JSON
+    #[arg(long)]
+    json: bool,
+}
+
+#[derive(Args)]
+struct ReplayArgs {
+    /// Filter by run ID
+    #[arg(long)]
+    run: Option<String>,
+    /// Filter by agent name(s)
+    #[arg(long = "agent")]
+    agents: Vec<String>,
+    /// Start time filter
+    #[arg(long)]
+    since: Option<String>,
+    /// End time filter
+    #[arg(long)]
+    until: Option<String>,
+    /// Max number of events to show
+    #[arg(long)]
+    limit: Option<i64>,
+    /// Output as JSON
+    #[arg(long)]
+    json: bool,
+}
+
+#[derive(Args)]
+struct MetricsArgs {
+    /// Number of recent sessions to show
+    #[arg(long)]
+    last: Option<i64>,
+    /// Output as JSON
+    #[arg(long)]
+    json: bool,
+}
+
+#[derive(Args)]
+struct MonitorArgs {
+    #[command(subcommand)]
+    command: MonitorSubcommand,
+}
+
+#[derive(Subcommand)]
+enum MonitorSubcommand {
+    /// Start the monitor daemon
+    Start(MonitorStartArgs),
+    /// Stop the monitor daemon
+    Stop(MonitorStopArgs),
+    /// Show monitor status
+    Status(MonitorStatusArgs),
+}
+
+#[derive(Args)]
+struct MonitorStartArgs {
+    /// Run in foreground (used internally)
+    #[arg(long, hide = true)]
+    foreground: bool,
+    /// Output as JSON
+    #[arg(long)]
+    json: bool,
+}
+
+#[derive(Args)]
+struct MonitorStopArgs {
+    /// Output as JSON
+    #[arg(long)]
+    json: bool,
+}
+
+#[derive(Args)]
+struct MonitorStatusArgs {
+    /// Output as JSON
+    #[arg(long)]
+    json: bool,
+}
+
+#[derive(Args)]
+struct WatchArgs {
+    #[command(subcommand)]
+    command: Option<WatchSubcommand>,
+    /// Poll interval in milliseconds
+    #[arg(long)]
+    interval: Option<u64>,
+    /// Run as background daemon
+    #[arg(long)]
+    background: bool,
+    /// Run in foreground (used internally by daemon)
+    #[arg(long, hide = true)]
+    foreground: bool,
+    /// Output as JSON
+    #[arg(long)]
+    json: bool,
+}
+
+#[derive(Subcommand)]
+enum WatchSubcommand {
+    /// Stop the background watchdog daemon
+    Stop(WatchStopArgs),
+    /// Show watchdog daemon status
+    Status(WatchStatusArgs),
+}
+
+#[derive(Args)]
+struct WatchStopArgs {
+    /// Output as JSON
+    #[arg(long)]
+    json: bool,
+}
+
+#[derive(Args)]
+struct WatchStatusArgs {
+    /// Output as JSON
+    #[arg(long)]
+    json: bool,
+}
+
+#[derive(Args)]
+struct EcosystemArgs {
+    /// Output as JSON
+    #[arg(long)]
+    json: bool,
+}
+
+#[derive(Args)]
 struct ErrorsArgs {
     /// Filter by agent name
     #[arg(long)]
@@ -1144,7 +1285,12 @@ fn run_command(
                 project,
             ),
         },
-        Commands::Prime(_) => not_yet_implemented("prime", json),
+        Commands::Prime(args) => commands::prime::execute(
+            args.agent,
+            args.compact,
+            args.json || json,
+            project,
+        ),
         Commands::Stop(args) => commands::stop::execute(
             &args.agent_name,
             args.force,
@@ -1221,7 +1367,15 @@ fn run_command(
             HooksSubcommand::Uninstall(a) => commands::hooks::execute_uninstall(a.json || json, project),
             HooksSubcommand::Status(a) => commands::hooks::execute_status(a.json || json, project),
         },
-        Commands::Monitor(_) => not_yet_implemented("monitor", json),
+        Commands::Monitor(args) => match args.command {
+            MonitorSubcommand::Start(a) => commands::monitor::execute_start(
+                a.foreground,
+                a.json || json,
+                project,
+            ),
+            MonitorSubcommand::Stop(a) => commands::monitor::execute_stop(a.json || json, project),
+            MonitorSubcommand::Status(a) => commands::monitor::execute_status(a.json || json, project),
+        },
         Commands::Mail(args) => match args.command {
             MailSubcommand::List(a) => {
                 commands::mail::execute_list(a.from, a.to, a.message_type, a.unread, a.limit, json)
@@ -1303,14 +1457,36 @@ fn run_command(
                 project,
             ),
         },
-        Commands::Logs(_) => not_yet_implemented("logs", json),
-        Commands::Watch(_) => not_yet_implemented("watch", json),
+        Commands::Logs(args) => commands::logs::execute(
+            args.agent,
+            args.level,
+            args.since,
+            args.until,
+            args.limit,
+            args.json || json,
+            project,
+        ),
+        Commands::Watch(args) => match args.command {
+            None => commands::watch_cmd::execute(
+                args.interval,
+                args.background,
+                args.foreground,
+                args.json || json,
+                project,
+            ),
+            Some(WatchSubcommand::Stop(a)) => {
+                commands::watch_cmd::execute_stop(a.json || json, project)
+            }
+            Some(WatchSubcommand::Status(a)) => {
+                commands::watch_cmd::execute_status(a.json || json, project)
+            }
+        },
         Commands::Trace(args) => commands::trace::execute(
             &args.subject,
             args.json || json,
             project,
         ),
-        Commands::Ecosystem(_) => not_yet_implemented("ecosystem", json),
+        Commands::Ecosystem(args) => commands::ecosystem::execute(args.json || json, project),
         Commands::Feed(args) => commands::feed::execute(
             args.follow,
             args.agent,
@@ -1325,7 +1501,15 @@ fn run_command(
             args.json || json,
             project,
         ),
-        Commands::Replay(_) => not_yet_implemented("replay", json),
+        Commands::Replay(args) => commands::replay::execute(
+            args.run,
+            args.agents,
+            args.since,
+            args.until,
+            args.limit,
+            args.json || json,
+            project,
+        ),
         Commands::Run(args) => {
             let cmd_json = args.json || json;
             match args.command {
@@ -1342,7 +1526,11 @@ fn run_command(
             args.json || json,
             project,
         ),
-        Commands::Metrics(_) => not_yet_implemented("metrics", json),
+        Commands::Metrics(args) => commands::metrics_cmd::execute(
+            args.last,
+            args.json || json,
+            project,
+        ),
         Commands::Eval(_) => not_yet_implemented("eval", json),
         Commands::Update(_) => not_yet_implemented("update", json),
         Commands::Upgrade(_) => not_yet_implemented("upgrade", json),

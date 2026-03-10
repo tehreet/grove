@@ -153,14 +153,14 @@ fn tool_definitions() -> Vec<ToolDef> {
 fn check_tool(def: &ToolDef) -> ToolInfo {
     // Try primary bin first, then fallback
     let version = get_tool_version(def.primary_bin)
-        .or_else(|| def.fallback_bin.and_then(|fb| get_tool_version(fb)));
+        .or_else(|| def.fallback_bin.and_then(get_tool_version));
 
     let installed = version.is_some();
 
     // Try doctor summary for overstory
     let doctor_summary = if installed && def.has_doctor {
         get_doctor_summary(def.primary_bin)
-            .or_else(|| def.fallback_bin.and_then(|fb| get_doctor_summary(fb)))
+            .or_else(|| def.fallback_bin.and_then(get_doctor_summary))
     } else {
         None
     };

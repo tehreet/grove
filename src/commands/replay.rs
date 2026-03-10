@@ -62,8 +62,8 @@ pub fn execute(
         since,
         until,
         level: None,
-        limit: limit.map(|l| l as usize).or(Some(200)),
-        ..Default::default()
+        limit: limit.or(Some(200)),
+
     };
 
     let agents_slice: Option<&[String]> = if agents.is_empty() { None } else { Some(&agents) };
