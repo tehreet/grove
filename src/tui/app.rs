@@ -23,12 +23,9 @@ pub enum View {
     Overview,
     AgentDetail,
     EventLog,
-<<<<<<< HEAD
     Terminal,
     SplitTerminal,
-=======
     MailReader,
->>>>>>> overstory/mail-reader-builder/phase65-lead3
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -443,12 +440,9 @@ impl App {
             View::AgentDetail => self.handle_key_detail(key),
             View::EventLog => self.handle_key_event_log(key),
             View::Overview => self.handle_key_overview(key),
-<<<<<<< HEAD
             View::Terminal => self.handle_key_terminal(key),
             View::SplitTerminal => self.handle_key_split_terminal(key),
-=======
             View::MailReader => self.handle_key_mail_reader(key),
->>>>>>> overstory/mail-reader-builder/phase65-lead3
         }
     }
 
@@ -477,18 +471,16 @@ impl App {
             KeyCode::Char('3') => self.show_help = true,
             KeyCode::Up | KeyCode::Char('k') => self.scroll_up(),
             KeyCode::Down | KeyCode::Char('j') => self.scroll_down(),
-<<<<<<< HEAD
-            KeyCode::Enter => self.enter_detail(),
-            KeyCode::Char('t') => {
-                if self.focus == Focus::Agents {
-                    self.enter_terminal();
-=======
             KeyCode::Enter => {
                 if self.focus == Focus::Mail {
                     self.enter_mail_reader();
                 } else {
                     self.enter_detail();
->>>>>>> overstory/mail-reader-builder/phase65-lead3
+                }
+            }
+            KeyCode::Char('t') => {
+                if self.focus == Focus::Agents {
+                    self.enter_terminal();
                 }
             }
             KeyCode::Char('c') if key.modifiers.contains(KeyModifiers::CONTROL) => {

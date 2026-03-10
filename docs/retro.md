@@ -238,3 +238,30 @@ Most failures fall into four categories:
 4. **Completeness gap:** Individual components work but the integrated system doesn't. Init creates a project, but the project can't spawn agents. Groups can be created but not referenced. Commands compile but aren't wired. Only end-to-end user-workflow testing catches these.
 
 All four are solvable in grove's coordinator by making verification commands, interface contracts, sequential merge steps, and E2E test suites first-class parts of the orchestration loop.
+
+---
+
+### RETRO-015: Conflict markers committed without detection — need pre-commit check
+
+**What happened:** Phase 6.5 had 4 builder branches merged manually. The mail-reader-builder conflicted with terminal-view-builder in 3 files (app.rs, views/mod.rs, status_bar.rs). I resolved status_bar.rs but committed app.rs and views/mod.rs with conflict markers still in them (`<<<<<<< HEAD`, `=======`, `>>>>>>>`). cargo build then failed with cryptic syntax errors.
+
+**Root cause:** Manual merge conflict resolution is error-prone. `git add -A && git commit` happily commits conflict markers. No pre-commit hook or quality gate checks for them.
+
+**Lesson for overstory/grove:**
+- ALWAYS run `grep -rn "<<<<<<" src/` before committing after any merge
+- Add this as a git pre-commit hook: reject commits containing conflict markers in source files
+- The coordinator should run this check after every merge as part of its event loop
+- When resolving conflicts manually, resolve ALL files before committing — don't do partial commits
+- `cargo build` catches it eventually but the error messages are misleading ("unexpected token" rather than "you have conflict markers")
+
+**Proposed fix:** Add to grove's `hooks install` command: a pre-commit hook that runs `grep -rn "<<<<<<< " src/ && echo "CONFLICT MARKERS FOUND" && exit 1`
+
+---
+
+### RETRO-016: Coordinator doesn't merge builder branches (RETRO-009 repeat)
+
+**What happened:** Phase 6.5 coordinator spawned 3 leads, each spawned builders. All completed. The coordinator went idle and never merged any of the 4 builder branches. We had to merge manually, encountering conflicts.
+
+**Root cause:** Same as RETRO-009. The LLM-based coordinator doesn't reliably merge branches as part of its workflow. It receives "done" signals but doesn't act on them.
+
+**Lesson:** This is the third time. The coordinator merge gap is structural, not incidental. Grove's native Rust coordinator MUST have automatic merge as a first-class step in its event loop — not an LLM decision.
