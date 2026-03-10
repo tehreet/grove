@@ -12,7 +12,7 @@ use ratatui::{
 };
 
 use crate::tui::app::App;
-use crate::tui::theme::{ACCENT_AMBER, BRAND_GREEN, HEADER_BG, MUTED_GRAY};
+use crate::tui::theme::{ACCENT_GREEN, ACCENT_ORANGE, BRAND_PRIMARY, HEADER_BG, MUTED_GRAY};
 
 // ---------------------------------------------------------------------------
 // Cached git info (refresh every 30 s — git calls are slow)
@@ -94,16 +94,16 @@ pub fn render(f: &mut Frame, app: &App, area: Rect) {
         Span::styled(
             " grove dashboard",
             Style::default()
-                .fg(BRAND_GREEN)
+                .fg(BRAND_PRIMARY)
                 .add_modifier(Modifier::BOLD),
         ),
         separator.clone(),
         Span::styled("run: ", Style::default().fg(MUTED_GRAY)),
-        Span::styled(run_display, Style::default().fg(ACCENT_AMBER)),
+        Span::styled(run_display, Style::default().fg(ACCENT_ORANGE)),
         separator.clone(),
         Span::styled(
             format!("{} agents", active_count),
-            Style::default().fg(BRAND_GREEN),
+            Style::default().fg(ACCENT_GREEN),
         ),
     ];
 
@@ -116,7 +116,7 @@ pub fn render(f: &mut Frame, app: &App, area: Rect) {
 
     if !cost.is_empty() {
         spans.push(separator.clone());
-        spans.push(Span::styled(cost, Style::default().fg(ACCENT_AMBER)));
+        spans.push(Span::styled(cost, Style::default().fg(ACCENT_GREEN)));
     }
 
     // Git branch + commit
@@ -146,13 +146,13 @@ pub fn render(f: &mut Frame, app: &App, area: Rect) {
         spans.push(separator.clone());
         spans.push(Span::styled(
             format!("filter: {}_", app.filter_text),
-            Style::default().fg(ACCENT_AMBER).add_modifier(Modifier::BOLD),
+            Style::default().fg(ACCENT_ORANGE).add_modifier(Modifier::BOLD),
         ));
     } else if !app.filter_text.is_empty() {
         spans.push(separator.clone());
         spans.push(Span::styled(
             format!("/{}", app.filter_text),
-            Style::default().fg(ACCENT_AMBER),
+            Style::default().fg(ACCENT_ORANGE),
         ));
     }
 

@@ -10,7 +10,7 @@ use ratatui::{
 
 use crate::tui::app::App;
 use crate::tui::theme::{
-    agent_state_color, agent_state_icon, ACCENT_AMBER, BORDER_FOCUSED, BRAND_GREEN, MUTED_GRAY,
+    agent_state_color, agent_state_icon, ACCENT_ORANGE, BORDER_FOCUSED, BRAND_PRIMARY, MUTED_GRAY,
 };
 use crate::tui::widgets::status_bar;
 
@@ -47,7 +47,7 @@ fn render_header(f: &mut Frame, app: &App, area: Rect) {
         Span::styled(" TERMINAL: ", Style::default().fg(MUTED_GRAY)),
         Span::styled(
             agent.agent_name.clone(),
-            Style::default().fg(ACCENT_AMBER).add_modifier(Modifier::BOLD),
+            Style::default().fg(ACCENT_ORANGE).add_modifier(Modifier::BOLD),
         ),
         Span::styled("  ", Style::default()),
         Span::styled(icon, Style::default().fg(state_color)),
@@ -55,11 +55,11 @@ fn render_header(f: &mut Frame, app: &App, area: Rect) {
             format!(" {}  ", format!("{:?}", agent.state).to_lowercase()),
             Style::default().fg(state_color),
         ),
-        Span::styled("[esc]", Style::default().fg(BRAND_GREEN).add_modifier(Modifier::BOLD)),
+        Span::styled("[esc]", Style::default().fg(BRAND_PRIMARY).add_modifier(Modifier::BOLD)),
         Span::styled(" back  ", Style::default().fg(MUTED_GRAY)),
-        Span::styled("[f]", Style::default().fg(BRAND_GREEN).add_modifier(Modifier::BOLD)),
+        Span::styled("[f]", Style::default().fg(BRAND_PRIMARY).add_modifier(Modifier::BOLD)),
         Span::styled(" fullscreen  ", Style::default().fg(MUTED_GRAY)),
-        Span::styled("[s]", Style::default().fg(BRAND_GREEN).add_modifier(Modifier::BOLD)),
+        Span::styled("[s]", Style::default().fg(BRAND_PRIMARY).add_modifier(Modifier::BOLD)),
         Span::styled(" split", Style::default().fg(MUTED_GRAY)),
     ]);
 

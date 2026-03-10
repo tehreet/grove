@@ -1,19 +1,39 @@
 //! Grove TUI brand palette and style helpers.
+//! Dracula + charm.sh inspired theme.
 
 use ratatui::style::{Color, Style};
 use ratatui::widgets::{Block, BorderType, Borders};
 
-pub const BRAND_GREEN: Color = Color::Rgb(46, 125, 50);
-pub const ACCENT_AMBER: Color = Color::Rgb(255, 183, 77);
-pub const MUTED_GRAY: Color = Color::Rgb(120, 120, 110);
-pub const WORKING_COLOR: Color = Color::Rgb(76, 175, 80);
-pub const BOOTING_COLOR: Color = Color::Rgb(255, 193, 7);
-pub const STALLED_COLOR: Color = Color::Rgb(244, 67, 54);
-pub const COMPLETED_COLOR: Color = Color::Rgb(0, 188, 212);
-pub const BORDER_FOCUSED: Color = BRAND_GREEN;
-pub const BORDER_UNFOCUSED: Color = Color::Rgb(58, 58, 58);
-pub const HEADER_BG: Color = Color::Rgb(25, 45, 25);
-pub const ZOMBIE_COLOR: Color = STALLED_COLOR;
+// Dracula + charm.sh inspired palette
+pub const BRAND_PRIMARY: Color = Color::Rgb(255, 85, 170);
+pub const ACCENT_PURPLE: Color = Color::Rgb(189, 147, 249);
+pub const ACCENT_CYAN: Color = Color::Rgb(139, 233, 253);
+pub const ACCENT_GREEN: Color = Color::Rgb(80, 250, 123);
+pub const ACCENT_YELLOW: Color = Color::Rgb(241, 250, 140);
+pub const ACCENT_ORANGE: Color = Color::Rgb(255, 184, 108);
+pub const ACCENT_RED: Color = Color::Rgb(255, 85, 85);
+
+pub const WORKING_COLOR: Color = ACCENT_GREEN;
+pub const BOOTING_COLOR: Color = ACCENT_YELLOW;
+pub const STALLED_COLOR: Color = ACCENT_RED;
+pub const ZOMBIE_COLOR: Color = Color::Rgb(255, 85, 85);
+pub const COMPLETED_COLOR: Color = ACCENT_PURPLE;
+
+pub const MUTED: Color = Color::Rgb(98, 114, 164);
+pub const HEADER_BG: Color = Color::Rgb(40, 42, 54);
+pub const BORDER_FOCUSED: Color = BRAND_PRIMARY;
+pub const BORDER_UNFOCUSED: Color = Color::Rgb(68, 71, 90);
+pub const TEXT_PRIMARY: Color = Color::Rgb(248, 248, 242);
+#[allow(dead_code)]
+pub const TEXT_DIM: Color = Color::Rgb(98, 114, 164);
+
+// Backward-compat aliases so existing imports compile
+#[allow(dead_code)]
+pub const MUTED_GRAY: Color = MUTED;
+#[allow(dead_code)]
+pub const BRAND_GREEN: Color = BRAND_PRIMARY;
+#[allow(dead_code)]
+pub const ACCENT_AMBER: Color = ACCENT_ORANGE;
 
 pub fn focused_block(title: &str) -> Block<'_> {
     Block::new()
@@ -45,11 +65,10 @@ pub fn agent_state_color(state: &crate::types::AgentState) -> Color {
 pub fn agent_state_icon(state: &crate::types::AgentState) -> &'static str {
     use crate::types::AgentState;
     match state {
-        AgentState::Working => "●",
-        AgentState::Booting => "○",
-        AgentState::Stalled => "!",
-        AgentState::Zombie => "✗",
-        AgentState::Completed => "✓",
+        AgentState::Working => "▶",
+        AgentState::Booting => "◌",
+        AgentState::Stalled => "⚠",
+        AgentState::Zombie => "☠",
+        AgentState::Completed => "✔",
     }
 }
-

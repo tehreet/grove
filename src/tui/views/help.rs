@@ -9,7 +9,7 @@ use ratatui::{
 };
 
 use crate::tui::app::App;
-use crate::tui::theme::{ACCENT_AMBER, BORDER_FOCUSED, BRAND_GREEN, MUTED_GRAY};
+use crate::tui::theme::{ACCENT_CYAN, BORDER_FOCUSED, BRAND_PRIMARY, MUTED_GRAY};
 
 pub fn render(f: &mut Frame, _app: &App) {
     let area = f.area();
@@ -50,6 +50,8 @@ pub fn render(f: &mut Frame, _app: &App) {
             ("a", "toggle completed agents"),
             ("1", "overview view"),
             ("2", "event log view"),
+            ("4 / $", "cost analytics view"),
+            ("5", "timeline view"),
         ]),
         ("Agent Detail", vec![
             ("esc / backspace", "return to overview"),
@@ -78,6 +80,24 @@ pub fn render(f: &mut Frame, _app: &App) {
             ("1-4", "focus panel by number"),
             ("q", "quit"),
         ]),
+        ("Mail Reader", vec![
+            ("esc / backspace", "return to overview"),
+            ("r", "reply"),
+            ("↑↓ / j k", "scroll"),
+            ("g", "top"),
+            ("G", "bottom"),
+            ("q", "quit"),
+        ]),
+        ("Cost Analytics", vec![
+            ("esc", "return to overview"),
+            ("↑↓ / j k", "scroll"),
+            ("q", "quit"),
+        ]),
+        ("Timeline", vec![
+            ("esc", "return to overview"),
+            ("↑↓ / j k", "scroll"),
+            ("q", "quit"),
+        ]),
         ("Anywhere", vec![
             ("ctrl+c", "force quit"),
         ]),
@@ -95,14 +115,14 @@ pub fn render(f: &mut Frame, _app: &App) {
         lines.push(ListItem::new(Line::from(Span::styled(
             format!(" {}", section),
             Style::default()
-                .fg(BRAND_GREEN)
+                .fg(BRAND_PRIMARY)
                 .add_modifier(Modifier::BOLD),
         ))));
         for (key, desc) in keys {
             lines.push(ListItem::new(Line::from(vec![
                 Span::styled(
                     format!("   {:22}", key),
-                    Style::default().fg(ACCENT_AMBER),
+                    Style::default().fg(ACCENT_CYAN),
                 ),
                 Span::styled(*desc, Style::default()),
             ])));

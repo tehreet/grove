@@ -1,12 +1,14 @@
 //! TUI view modules.
 
 pub mod agent_detail;
+pub mod cost_analytics;
 pub mod event_log;
 pub mod help;
 pub mod mail_reader;
 pub mod overview;
 pub mod split_terminal;
 pub mod terminal;
+pub mod timeline;
 
 use ratatui::Frame;
 
@@ -21,9 +23,13 @@ pub fn render(f: &mut Frame, app: &mut App) {
         View::Terminal => terminal::render(f, app),
         View::SplitTerminal => split_terminal::render(f, app),
         View::MailReader => mail_reader::render(f, app),
+        View::CostAnalytics => cost_analytics::render(f, app),
+        View::Timeline => timeline::render(f, app),
     }
 
     if app.show_help {
         help::render(f, app);
     }
+
+    crate::tui::widgets::toasts::render(f, app);
 }

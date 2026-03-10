@@ -11,7 +11,7 @@ use ratatui::{
 
 use crate::tui::app::App;
 use crate::tui::theme::{
-    agent_state_color, agent_state_icon, ACCENT_AMBER, BORDER_UNFOCUSED, BRAND_GREEN, MUTED_GRAY,
+    agent_state_color, agent_state_icon, ACCENT_ORANGE, BORDER_UNFOCUSED, BRAND_PRIMARY, MUTED_GRAY,
 };
 use crate::tui::widgets::status_bar;
 use crate::types::AgentSession;
@@ -44,7 +44,7 @@ fn render_back_header(f: &mut Frame, app: &App, area: Rect) {
         Span::styled(" ← Agent: ", Style::default().fg(MUTED_GRAY)),
         Span::styled(
             session.agent_name.clone(),
-            Style::default().fg(ACCENT_AMBER).add_modifier(Modifier::BOLD),
+            Style::default().fg(ACCENT_ORANGE).add_modifier(Modifier::BOLD),
         ),
         Span::styled(" (", Style::default().fg(MUTED_GRAY)),
         Span::styled(&session.capability, Style::default().fg(MUTED_GRAY)),
@@ -89,7 +89,7 @@ fn render_top_panels(f: &mut Frame, app: &App, area: Rect, session: &AgentSessio
     let session_lines = vec![
         Line::from(vec![
             Span::styled("  Task:     ", Style::default().fg(MUTED_GRAY)),
-            Span::styled(&session.task_id, Style::default().fg(ACCENT_AMBER)),
+            Span::styled(&session.task_id, Style::default().fg(ACCENT_ORANGE)),
         ]),
         Line::from(vec![
             Span::styled("  Branch:   ", Style::default().fg(MUTED_GRAY)),
@@ -160,7 +160,7 @@ fn render_top_panels(f: &mut Frame, app: &App, area: Rect, session: &AgentSessio
                 snap.and_then(|s| s.estimated_cost_usd)
                     .map(|c| format!("${:.4}", c))
                     .unwrap_or_else(|| "—".to_string()),
-                Style::default().fg(ACCENT_AMBER),
+                Style::default().fg(ACCENT_ORANGE),
             ),
         ]),
         Line::from(vec![
@@ -250,7 +250,7 @@ fn render_bottom_panels(f: &mut Frame, app: &mut App, area: Rect, _agent_name: &
         .take(area.height as usize)
         .map(|msg| {
             let dot = if !msg.read {
-                Span::styled("● ", Style::default().fg(ACCENT_AMBER))
+                Span::styled("● ", Style::default().fg(ACCENT_ORANGE))
             } else {
                 Span::styled("  ", Style::default())
             };
@@ -258,7 +258,7 @@ fn render_bottom_panels(f: &mut Frame, app: &mut App, area: Rect, _agent_name: &
                 dot,
                 Span::styled(
                     format!("{} → {}: ", truncate(&msg.from, 12), truncate(&msg.to, 12)),
-                    Style::default().fg(BRAND_GREEN),
+                    Style::default().fg(BRAND_PRIMARY),
                 ),
                 Span::styled(truncate(&msg.subject, 40), Style::default()),
             ]))

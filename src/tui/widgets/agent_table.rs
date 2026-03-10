@@ -10,7 +10,8 @@ use ratatui::{
 
 use crate::tui::app::App;
 use crate::tui::theme::{
-    agent_state_color, agent_state_icon, focused_block, unfocused_block, MUTED_GRAY,
+    agent_state_color, agent_state_icon, focused_block, unfocused_block, ACCENT_CYAN, MUTED_GRAY,
+    TEXT_PRIMARY,
 };
 use crate::tui::app::Focus;
 use ratatui::layout::Constraint;
@@ -64,7 +65,7 @@ pub fn render(f: &mut Frame, app: &mut App, area: Rect) {
                 Cell::from(truncate(&session.agent_name, 22))
                     .style(Style::default().fg(state_color)),
                 Cell::from(truncate(&session.capability, 10))
-                    .style(Style::default().fg(MUTED_GRAY)),
+                    .style(Style::default().fg(ACCENT_CYAN)),
                 Cell::from(state_str).style(Style::default().fg(state_color)),
                 Cell::from(truncate(&session.task_id, 16))
                     .style(Style::default().fg(MUTED_GRAY)),
@@ -87,10 +88,11 @@ pub fn render(f: &mut Frame, app: &mut App, area: Rect) {
 
     let highlight_style = if focused {
         Style::default()
-            .bg(ratatui::style::Color::Rgb(40, 80, 40))
+            .bg(ratatui::style::Color::Rgb(68, 71, 90))
+            .fg(TEXT_PRIMARY)
             .add_modifier(Modifier::BOLD)
     } else {
-        Style::default().bg(ratatui::style::Color::Rgb(50, 50, 50))
+        Style::default().bg(ratatui::style::Color::Rgb(68, 71, 90)).fg(TEXT_PRIMARY)
     };
 
     let table = Table::new(rows, widths)

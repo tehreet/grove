@@ -8,14 +8,14 @@ use std::time::Instant;
 
 use ratatui::{
     layout::{Constraint, Direction, Layout, Rect},
-    style::{Color, Modifier, Style},
+    style::{Modifier, Style},
     text::{Line, Span},
     widgets::Paragraph,
     Frame,
 };
 
 use crate::tui::app::{App, View};
-use crate::tui::theme::{BRAND_GREEN, MUTED_GRAY};
+use crate::tui::theme::{ACCENT_GREEN, ACCENT_ORANGE, BRAND_PRIMARY, MUTED_GRAY};
 
 // ---------------------------------------------------------------------------
 // Notification queue
@@ -137,7 +137,7 @@ pub fn render(f: &mut Frame, app: &App, area: Rect) {
         Span::styled(
             format!("[{}]", k),
             Style::default()
-                .fg(BRAND_GREEN)
+                .fg(BRAND_PRIMARY)
                 .add_modifier(Modifier::BOLD),
         )
     };
@@ -154,7 +154,9 @@ pub fn render(f: &mut Frame, app: &App, area: Rect) {
                 key("/"), label("filter"), sep.clone(),
                 key("r"), label("refresh"), sep.clone(),
                 key("a"), label("all agents"), sep.clone(),
-                key("2"), label("event log"),
+                key("2"), label("event log"), sep.clone(),
+                key("4/$"), label("costs"), sep.clone(),
+                key("5"), label("timeline"),
             ]
         }
         View::AgentDetail => {
@@ -198,6 +200,20 @@ pub fn render(f: &mut Frame, app: &App, area: Rect) {
                 key("↑↓/jk"), label("scroll"),
             ]
         }
+        View::CostAnalytics => {
+            vec![
+                key("esc"), label("back"), sep.clone(),
+                key("↑↓/jk"), label("scroll"), sep.clone(),
+                key("q"), label("quit"),
+            ]
+        }
+        View::Timeline => {
+            vec![
+                key("esc"), label("back"), sep.clone(),
+                key("↑↓/jk"), label("scroll"), sep.clone(),
+                key("q"), label("quit"),
+            ]
+        }
     };
 
     // Split area: hints on left, system stats on right
@@ -224,7 +240,7 @@ fn build_right_spans() -> Vec<Span<'static>> {
             Span::styled(
                 format!("  ✦ {}", notif),
                 Style::default()
-                    .fg(Color::Rgb(255, 183, 77))
+                    .fg(ACCENT_ORANGE)
                     .add_modifier(Modifier::BOLD),
             ),
         ];
@@ -237,7 +253,7 @@ fn build_right_spans() -> Vec<Span<'static>> {
         spans.push(Span::styled("load ", Style::default().fg(MUTED_GRAY)));
         spans.push(Span::styled(
             load_avg,
-            Style::default().fg(Color::Rgb(150, 200, 150)),
+            Style::default().fg(ACCENT_GREEN),
         ));
     }
 
@@ -248,7 +264,7 @@ fn build_right_spans() -> Vec<Span<'static>> {
         spans.push(Span::styled("disk ", Style::default().fg(MUTED_GRAY)));
         spans.push(Span::styled(
             disk_usage,
-            Style::default().fg(Color::Rgb(150, 200, 150)),
+            Style::default().fg(ACCENT_GREEN),
         ));
     }
 
