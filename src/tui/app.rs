@@ -377,7 +377,7 @@ impl App {
 
         // Capture previous state for toast detection
         let prev_states: Vec<(String, AgentState)> = self.sessions.iter()
-            .map(|s| (s.agent_name.clone(), s.state.clone())).collect();
+            .map(|s| (s.agent_name.clone(), s.state)).collect();
         let prev_mail_count = self.messages.len();
 
         // Sessions + events every tick (1s)
