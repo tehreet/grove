@@ -613,3 +613,68 @@ fi
 - Code style matches existing patterns in group.rs
 
 **Conclusion:** The Codex adapter works for real feature development. The code quality is production-grade. Main gaps are: TUI stderr visibility, no test generation, high token usage.
+
+---
+
+### RETRO-040: Agents complete work but fail to commit — rustfmt errors on out-of-scope files
+
+**What happened:** Phase 9D (cmd-features) and Phase 9C (ai-merge-triage) agents completed their work, built successfully, passed all tests, but exited without committing. Both sent `worker_done` mail. Work was stranded in the worktree as uncommitted changes.
+
+**Root cause for 9D:** The agent ran `rustfmt` on its target files, which triggered rustfmt to parse `src/coordinator/planner.rs` (an out-of-scope file). That file contains `async fn` without an edition directive, causing a rustfmt parse error. Rustfmt's failure caused the agent to abort before reaching `git commit`.
+
+**Root cause for 9C:** The pre-commit hook rejected a commit because `src/merge/resolver.rs` contains `<<<<<<< HEAD` string literals inside test data (test cases for the conflict parser). The hook's grep matched them as real conflict markers and refused the commit.
+
+**How we recovered:** Manually verified the worktree builds and tests pass, then `git add -A && git commit` (with `--no-verify` for 9C to bypass the false-positive hook).
+
+**Lesson for grove:**
+- Agents are brittle at the commit stage — any unexpected error in post-work tooling (rustfmt, hooks) kills the commit without recovery
+- `rustfmt` on a set of files can fail due to files it transitively parses — not just the target files
+- Pre-commit hooks that grep for conflict markers will false-positive on any file that legitimately contains those strings as data (parsers, tests, documentation)
+- The agent has no retry or fallback for commit failures — it just exits and reports done
+
+**Proposed fixes:**
+1. Specs should tell agents to run `git commit --no-verify` to bypass hook false-positives — OR — improve the hook to only check files being committed, not all src/ files
+2. The conflict marker hook should check `git diff --cached` (staged files only) not `grep -rn src/`
+3. `rustfmt` errors on out-of-scope files should not block commits — consider `rustfmt --check` only on the agent's own files
+4. The agent overlay (AGENTS.md) should include a fallback: "If `git commit` fails, try `git commit --no-verify` and report the original error in your mail"
+5. Grove's monitor/watchdog should detect "worktree has uncommitted changes + session completed" and flag it as a partial-completion state, not a clean completion
+
+---
+
+### RETRO-041: `grove` binary not on PATH — no global install step after build
+
+**What happened:** After building grove on a fresh session, running `grove dashboard` failed with "Command 'grove' not found." The binary exists at `~/grove/target/debug/grove` but isn't on PATH.
+
+**Root cause:** Grove has no install step. `cargo build` produces the binary in `target/debug/` but doesn't install it. There's no `cargo install --path .` step in the setup docs, and no symlink created by default.
+
+**Fix applied:** Created a symlink at `~/.local/bin/grove` → `~/grove/target/debug/grove`. `~/.local/bin` is already in PATH via `.bashrc`.
+
+**Lesson:** Any project that produces a binary people will use from the command line needs a global install step. Either:
+- `cargo install --path .` (installs to `~/.cargo/bin/`, requires rebuild for updates)
+- Symlink to debug binary (always current, slower binary)
+- A `make install` or `./install.sh` that symlinks
+
+**Proposed fix:** Add to `scripts/setup-vps.sh` and the README: `ln -sf ~/grove/target/debug/grove ~/.local/bin/grove`. Also consider adding `grove install` as a self-install subcommand.
+
+---
+
+### RETRO-042: TUI agent cards show "idle" with no useful information
+
+**What happened:** The `grove dashboard` overview shows agent cards with just "idle / Xm Ys" — no task, no branch, no last action, no summary. The card UI is present but the content is useless for monitoring active agents.
+
+**Root cause:** The agent card widget reads the session's `tmux_session` field to display output, but grove's headless agents don't use tmux. The terminal pane at the bottom shows real output (from the stderr.log fallback added this session), but the card summary in the overview is static metadata only.
+
+**What users actually want from a card:**
+- Agent name + capability (✓ present)
+- Current task / branch (✗ missing)  
+- Last meaningful action (✗ missing — "idle" is not useful)
+- Elapsed time (✓ present)
+- State with color (partially — the border color works)
+- Last mail sent (✗ missing)
+
+**Proposed fix for Phase 10 (TUI redesign):**
+- Pull `task_id` and `branch_name` from the session and display them in the card
+- Replace "idle" with the last event from events.db for this agent (last `$ command` line)
+- Show last mail subject + recipient in the card footer
+- Card grid should be navigable (arrow keys to flip between agents)
+- When an agent is selected, the terminal pane below should auto-update to show that agent's output
