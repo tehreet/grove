@@ -6,13 +6,12 @@
 //! Use --all for full cleanup or individual flags for selective cleanup.
 
 use std::fs;
-use std::path::{Path, PathBuf};
+use std::path::{Path};
 use std::process::Command;
 
 use serde::Serialize;
 
 use crate::config::resolve_project_root;
-use crate::db::sessions::SessionStore;
 use crate::json::json_output;
 use crate::logging::{muted, print_hint, print_success};
 
@@ -209,15 +208,8 @@ struct CleanResult {
 }
 
 // ---------------------------------------------------------------------------
-// Tmux helpers
+// Process helpers
 // ---------------------------------------------------------------------------
-
-/// Kill all tmux sessions registered in this project's sessions.db.
-///
-/// Falls back to killing all "overstory-*" prefixed sessions if the
-/// SessionStore is unavailable.
-
-
 
 // ---------------------------------------------------------------------------
 // Worktree helpers

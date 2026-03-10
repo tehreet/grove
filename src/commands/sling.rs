@@ -27,7 +27,7 @@ use crate::db::mail::MailStore;
 use crate::db::sessions::{RunStore, SessionStore};
 use crate::json::json_output;
 use crate::logging::print_success;
-use crate::runtimes::registry::get_runtime;
+use crate::runtimes::registry::{get_runtime, resolve_runtime_for};
 use crate::runtimes::{HooksDef, SpawnOpts};
 use crate::types::{
     AgentIdentity, AgentSession, AgentState, InsertMailMessage, InsertRun, MailMessageType,
@@ -170,6 +170,7 @@ pub struct SlingOptions<'a> {
     pub base_branch: Option<&'a str>,
     pub no_directives: bool,
     /// Force headless spawn (no tmux), overriding runtime default
+    #[allow(dead_code)]
     pub headless: bool,
     pub json: bool,
     pub project_override: Option<&'a Path>,
@@ -469,23 +470,20 @@ struct DoSpawnContext<'a> {
     no_directives: bool,
     skip_review: bool,
     max_agents_override: Option<u32>,
-    /// If true, force headless spawn regardless of runtime.is_headless()
+    /// Kept for backward compat — all spawns are headless in grove.
+    #[allow(dead_code)]
     headless: bool,
     json: bool,
 }
 
 fn do_spawn(ctx: DoSpawnContext<'_>) -> Result<(), String> {
     // Resolve runtime
-    let runtime_id = ctx
-        .runtime_name
-        .or_else(|| {
-            ctx.config
-                .runtime
-                .as_ref()
-                .map(|r| r.default.as_str())
-        })
-        .unwrap_or("claude");
-    let runtime = get_runtime(runtime_id)?;
+    // Resolve runtime: explicit --runtime flag > per-capability config > default > claude
+    let runtime = if let Some(rt_name) = ctx.runtime_name {
+        get_runtime(rt_name)?
+    } else {
+        resolve_runtime_for(ctx.config, Some(ctx.capability))?
+    };
 
     // Mulch domains
     let mulch_domains = if ctx.config.mulch.enabled {

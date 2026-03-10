@@ -4,9 +4,12 @@ use std::collections::HashMap;
 use std::path::Path;
 
 pub mod claude;
+pub mod codex;
+pub mod copilot;
+pub mod gemini;
 pub mod registry;
 
-/// Ready-state detection for interactive (tmux) runtimes.
+/// Ready-state detection for interactive runtimes.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum ReadyPhase {
     NotReady,
@@ -47,19 +50,19 @@ pub trait AgentRuntime: Send + Sync {
     /// Path to the instruction/overlay file relative to worktree root
     fn instruction_path(&self) -> &str;
 
-    /// Whether this runtime supports headless (-p / --quiet) mode
+    /// Whether this runtime is headless (direct process, no tmux)
     fn is_headless(&self) -> bool;
 
     /// Build argv for headless (stdin/stdout pipe) spawn
     fn build_headless_command(&self, opts: &SpawnOpts) -> Vec<String>;
 
-    /// Build shell command string for interactive tmux spawn
+    /// Build shell command string for interactive spawn
     fn build_interactive_command(&self, opts: &SpawnOpts) -> String;
 
     /// Deploy overlay + hooks config to worktree
     fn deploy_config(&self, worktree: &Path, overlay_content: &str, hooks: &HooksDef) -> Result<(), String>;
 
-    /// Detect TUI readiness from tmux pane content (interactive mode only)
+    /// Detect readiness from output content
     fn detect_ready(&self, pane_content: &str) -> ReadyState;
 
     /// Build environment variables for model/provider routing

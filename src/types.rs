@@ -175,12 +175,25 @@ pub struct CoordinatorConfig {
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
+#[serde(default)]
 pub struct RuntimeConfig {
     pub default: String,
     pub capabilities: Option<HashMap<String, String>>,
     pub print_command: Option<String>,
     pub pi: Option<PiRuntimeConfig>,
     pub shell_init_delay_ms: Option<u64>,
+}
+
+impl Default for RuntimeConfig {
+    fn default() -> Self {
+        Self {
+            default: "claude".to_string(),
+            capabilities: None,
+            print_command: None,
+            pi: None,
+            shell_init_delay_ms: None,
+        }
+    }
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]

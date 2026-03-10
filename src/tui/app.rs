@@ -1021,7 +1021,7 @@ impl App {
 /// 2. If tmux fails or no session, read from .overstory/logs/<agent_name>/ (headless agents)
 /// 3. If no log file, show a "no output available" message
 pub fn capture_agent_output(
-    session_name: &str,
+    _session_name: &str,
     agent_name: &str,
     project_root: &str,
 ) -> Vec<String> {

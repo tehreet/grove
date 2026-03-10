@@ -236,9 +236,15 @@ pub fn execute_clean(
             }
         }
 
-        // Kill tmux session if alive
+        // Kill agent process if alive (PID-based, no tmux)
         if let Some(s) = session {
-
+            if let Some(pid) = s.pid {
+                if crate::watchdog::is_pid_alive(pid) {
+                    let _ = std::process::Command::new("kill")
+                        .args(["-15", &pid.to_string()])
+                        .output();
+                }
+            }
         }
 
         // Warn about force-deleting unmerged branches

@@ -194,7 +194,7 @@ fn record_nudge_event(
     overstory_dir: &str,
     agent_name: &str,
     from: &str,
-    message: &str,
+    _message: &str,
     delivered: bool,
 ) {
     let events_db = format!("{overstory_dir}/events.db");
