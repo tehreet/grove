@@ -56,9 +56,7 @@ pub fn execute(
 
     if !PathBuf::from(&metrics_db).exists() {
         if json {
-            let empty = CostsOutput {
-                sessions: vec![],
-            };
+            let empty = CostsOutput { sessions: vec![] };
             println!("{}", json_output("costs", &empty));
         } else {
             println!("{}", brand_bold("Cost Summary"));
@@ -96,9 +94,7 @@ pub fn execute(
             .get_sessions_by_run(run_id)
             .map_err(|e| e.to_string())?
     } else {
-        store
-            .get_recent_sessions(None)
-            .map_err(|e| e.to_string())?
+        store.get_recent_sessions(None).map_err(|e| e.to_string())?
     };
 
     let totals = totals_from_sessions(&sessions);
@@ -125,10 +121,7 @@ fn totals_from_sessions(sessions: &[SessionMetrics]) -> CostTotals {
         output_tokens: sessions.iter().map(|s| s.output_tokens).sum(),
         cache_read_tokens: sessions.iter().map(|s| s.cache_read_tokens).sum(),
         cache_creation_tokens: sessions.iter().map(|s| s.cache_creation_tokens).sum(),
-        estimated_cost_usd: sessions
-            .iter()
-            .filter_map(|s| s.estimated_cost_usd)
-            .sum(),
+        estimated_cost_usd: sessions.iter().filter_map(|s| s.estimated_cost_usd).sum(),
     }
 }
 
@@ -138,10 +131,7 @@ fn totals_from_snapshots(snapshots: &[TokenSnapshot]) -> CostTotals {
         output_tokens: snapshots.iter().map(|s| s.output_tokens).sum(),
         cache_read_tokens: snapshots.iter().map(|s| s.cache_read_tokens).sum(),
         cache_creation_tokens: snapshots.iter().map(|s| s.cache_creation_tokens).sum(),
-        estimated_cost_usd: snapshots
-            .iter()
-            .filter_map(|s| s.estimated_cost_usd)
-            .sum(),
+        estimated_cost_usd: snapshots.iter().filter_map(|s| s.estimated_cost_usd).sum(),
     }
 }
 

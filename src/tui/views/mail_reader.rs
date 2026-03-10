@@ -21,11 +21,11 @@ pub fn render(f: &mut Frame, app: &App) {
     let reply_height: u16 = if has_reply { 5 } else { 0 };
 
     let layout = Layout::vertical([
-        Constraint::Length(1),                              // header
-        Constraint::Length(4),                              // meta
-        Constraint::Fill(1),                                // body + thread
-        Constraint::Length(reply_height),                   // reply input (conditional)
-        Constraint::Length(1),                              // footer hints
+        Constraint::Length(1),            // header
+        Constraint::Length(4),            // meta
+        Constraint::Fill(1),              // body + thread
+        Constraint::Length(reply_height), // reply input (conditional)
+        Constraint::Length(1),            // footer hints
     ])
     .split(area);
 
@@ -46,7 +46,12 @@ pub fn render(f: &mut Frame, app: &App) {
 fn render_header(f: &mut Frame, msg: &MailMessage, area: Rect) {
     let line = Line::from(vec![
         Span::styled(" ← ", Style::default().fg(MUTED_GRAY)),
-        Span::styled(&msg.subject, Style::default().fg(ACCENT_ORANGE).add_modifier(Modifier::BOLD)),
+        Span::styled(
+            &msg.subject,
+            Style::default()
+                .fg(ACCENT_ORANGE)
+                .add_modifier(Modifier::BOLD),
+        ),
     ]);
     f.render_widget(Paragraph::new(line), area);
 }
@@ -73,16 +78,14 @@ fn render_meta(f: &mut Frame, msg: &MailMessage, area: Rect) {
             Span::styled("   Time: ", Style::default().fg(MUTED_GRAY)),
             Span::styled(time_str, Style::default()),
         ]),
-        Line::from(vec![
-            Span::styled(
-                if let Some(tid) = &msg.thread_id {
-                    format!("  Thread:   {}", tid)
-                } else {
-                    String::new()
-                },
-                Style::default().fg(MUTED_GRAY),
-            ),
-        ]),
+        Line::from(vec![Span::styled(
+            if let Some(tid) = &msg.thread_id {
+                format!("  Thread:   {}", tid)
+            } else {
+                String::new()
+            },
+            Style::default().fg(MUTED_GRAY),
+        )]),
     ];
 
     let block = Block::new()
@@ -98,11 +101,8 @@ fn render_body(f: &mut Frame, app: &App, msg: &MailMessage, area: Rect) {
     let thread_visible = thread_count > 0;
 
     let (body_area, thread_area) = if thread_visible {
-        let parts = Layout::vertical([
-            Constraint::Percentage(60),
-            Constraint::Percentage(40),
-        ])
-        .split(area);
+        let parts =
+            Layout::vertical([Constraint::Percentage(60), Constraint::Percentage(40)]).split(area);
         (parts[0], Some(parts[1]))
     } else {
         (area, None)
@@ -124,9 +124,9 @@ fn render_body(f: &mut Frame, app: &App, msg: &MailMessage, area: Rect) {
         .map(|l| Line::from(Span::raw(l.to_string())))
         .collect();
 
-    let scroll_offset = app.mail_reader_scroll.min(
-        body_lines.len().saturating_sub(visible_height),
-    );
+    let scroll_offset = app
+        .mail_reader_scroll
+        .min(body_lines.len().saturating_sub(visible_height));
 
     let body_para = Paragraph::new(body_lines)
         .wrap(Wrap { trim: false })
@@ -159,11 +159,18 @@ fn render_thread(f: &mut Frame, app: &App, current: &MailMessage, area: Rect) {
         }
         let indent = "  ↳ ";
         let time = msg.created_at.get(11..16).unwrap_or("?");
-        let from_short = if msg.from.len() > 16 { &msg.from[..16] } else { &msg.from };
+        let from_short = if msg.from.len() > 16 {
+            &msg.from[..16]
+        } else {
+            &msg.from
+        };
 
         lines.push(Line::from(vec![
             Span::styled(indent, Style::default().fg(MUTED_GRAY)),
-            Span::styled(format!("{} ", from_short), Style::default().fg(BRAND_PRIMARY)),
+            Span::styled(
+                format!("{} ", from_short),
+                Style::default().fg(BRAND_PRIMARY),
+            ),
             Span::styled(format!("[{}]  ", time), Style::default().fg(MUTED_GRAY)),
             Span::styled(
                 truncate(&msg.body, area.width.saturating_sub(30) as usize),
@@ -172,9 +179,9 @@ fn render_thread(f: &mut Frame, app: &App, current: &MailMessage, area: Rect) {
         ]));
     }
 
-    let scroll = app.mail_reader_scroll.saturating_sub(
-        app.thread_messages.len().saturating_sub(visible_height),
-    );
+    let scroll = app
+        .mail_reader_scroll
+        .saturating_sub(app.thread_messages.len().saturating_sub(visible_height));
 
     let para = Paragraph::new(lines)
         .wrap(Wrap { trim: false })
@@ -191,17 +198,17 @@ fn render_reply_input(f: &mut Frame, app: &App, area: Rect) {
         .border_type(BorderType::Rounded)
         .border_style(Style::default().fg(BORDER_FOCUSED));
 
-    let inner = block.inner(area).inner(Margin { horizontal: 1, vertical: 0 });
+    let inner = block.inner(area).inner(Margin {
+        horizontal: 1,
+        vertical: 0,
+    });
 
     f.render_widget(block, area);
 
     // Show cursor blinking at end of text
     let text_with_cursor = format!("{}█", app.reply_text);
-    let para = Paragraph::new(Line::from(Span::styled(
-        text_with_cursor,
-        Style::default(),
-    )))
-    .wrap(Wrap { trim: false });
+    let para = Paragraph::new(Line::from(Span::styled(text_with_cursor, Style::default())))
+        .wrap(Wrap { trim: false });
 
     f.render_widget(para, inner);
 }

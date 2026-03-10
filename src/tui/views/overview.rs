@@ -75,7 +75,8 @@ fn render_cards(f: &mut Frame, app: &mut App, area: Rect) {
             .iter()
             .rev()
             .find(|e| e.agent_name == session.agent_name);
-        let tmux_lines = crate::tui::app::capture_agent_output(&session.tmux_session, &session.agent_name, ".");
+        let tmux_lines =
+            crate::tui::app::capture_agent_output(&session.tmux_session, &session.agent_name, ".");
         let last_line = tmux_lines.last().map(|s| s.as_str()).unwrap_or("");
 
         agent_card::render_card(
@@ -97,11 +98,8 @@ fn render_cards(f: &mut Frame, app: &mut App, area: Rect) {
 }
 
 fn render_feed_mail(f: &mut Frame, app: &mut App, area: Rect) {
-    let panels = Layout::horizontal([
-        Constraint::Percentage(60),
-        Constraint::Percentage(40),
-    ])
-    .split(area);
+    let panels =
+        Layout::horizontal([Constraint::Percentage(60), Constraint::Percentage(40)]).split(area);
 
     feed::render(f, app, panels[0]);
     mail_list::render(f, app, panels[1]);

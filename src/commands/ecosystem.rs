@@ -66,7 +66,11 @@ pub fn extract_version(output: &str) -> Option<String> {
                 let candidate: String = chars[start..i].iter().collect();
                 // Must match X.Y.Z pattern (at least one dot)
                 let parts: Vec<&str> = candidate.split('.').collect();
-                if parts.len() >= 3 && parts.iter().all(|p| !p.is_empty() && p.chars().all(|c| c.is_ascii_digit())) {
+                if parts.len() >= 3
+                    && parts
+                        .iter()
+                        .all(|p| !p.is_empty() && p.chars().all(|c| c.is_ascii_digit()))
+                {
                     return Some(candidate);
                 }
             } else {
@@ -90,10 +94,7 @@ pub fn get_tool_version(bin: &str) -> Option<String> {
 }
 
 fn get_doctor_summary(bin: &str) -> Option<DoctorSummaryInfo> {
-    let output = Command::new(bin)
-        .args(["doctor", "--json"])
-        .output()
-        .ok()?;
+    let output = Command::new(bin).args(["doctor", "--json"]).output().ok()?;
     if !output.status.success() && output.stdout.is_empty() {
         return None;
     }
@@ -102,7 +103,11 @@ fn get_doctor_summary(bin: &str) -> Option<DoctorSummaryInfo> {
     let passed = v["summary"]["passed"].as_u64()? as usize;
     let warnings = v["summary"]["warnings"].as_u64().unwrap_or(0) as usize;
     let failed = v["summary"]["failed"].as_u64().unwrap_or(0) as usize;
-    Some(DoctorSummaryInfo { passed, warnings, failed })
+    Some(DoctorSummaryInfo {
+        passed,
+        warnings,
+        failed,
+    })
 }
 
 // ---------------------------------------------------------------------------
@@ -152,8 +157,8 @@ fn tool_definitions() -> Vec<ToolDef> {
 
 fn check_tool(def: &ToolDef) -> ToolInfo {
     // Try primary bin first, then fallback
-    let version = get_tool_version(def.primary_bin)
-        .or_else(|| def.fallback_bin.and_then(get_tool_version));
+    let version =
+        get_tool_version(def.primary_bin).or_else(|| def.fallback_bin.and_then(get_tool_version));
 
     let installed = version.is_some();
 
@@ -187,7 +192,11 @@ pub fn execute(json: bool, _project_override: Option<&Path>) -> Result<(), Strin
     let missing = total - installed;
 
     if json {
-        let summary = EcoSummary { total, installed, missing };
+        let summary = EcoSummary {
+            total,
+            installed,
+            missing,
+        };
         let output = EcosystemOutput { tools, summary };
         println!("{}", json_output("ecosystem", &output));
         return Ok(());
@@ -251,10 +260,7 @@ mod tests {
             extract_version("mulch 0.6.3 (build 2026)"),
             Some("0.6.3".into())
         );
-        assert_eq!(
-            extract_version("grove version 0.1.0"),
-            Some("0.1.0".into())
-        );
+        assert_eq!(extract_version("grove version 0.1.0"), Some("0.1.0".into()));
         assert_eq!(extract_version("no version here"), None);
     }
 

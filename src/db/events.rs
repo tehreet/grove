@@ -49,10 +49,16 @@ fn row_to_event(row: &rusqlite::Row<'_>) -> rusqlite::Result<StoredEvent> {
 
 fn apply_query_options(sql: &mut String, opts: &EventQueryOptions) {
     if let Some(ref since) = opts.since {
-        sql.push_str(&format!(" AND created_at >= '{}'", since.replace('\'', "''")));
+        sql.push_str(&format!(
+            " AND created_at >= '{}'",
+            since.replace('\'', "''")
+        ));
     }
     if let Some(ref until) = opts.until {
-        sql.push_str(&format!(" AND created_at <= '{}'", until.replace('\'', "''")));
+        sql.push_str(&format!(
+            " AND created_at <= '{}'",
+            until.replace('\'', "''")
+        ));
     }
     if let Some(ref level) = opts.level {
         let level_str = match level {
@@ -151,7 +157,8 @@ impl EventStore {
         apply_query_options(&mut sql, &opts);
         let mut stmt = self.conn.prepare(&sql)?;
         let rows = stmt.query_map([], row_to_event)?;
-        rows.collect::<rusqlite::Result<Vec<_>>>().map_err(GroveError::from)
+        rows.collect::<rusqlite::Result<Vec<_>>>()
+            .map_err(GroveError::from)
     }
 
     pub fn get_by_run(
@@ -169,7 +176,8 @@ impl EventStore {
         apply_query_options(&mut sql, &opts);
         let mut stmt = self.conn.prepare(&sql)?;
         let rows = stmt.query_map([], row_to_event)?;
-        rows.collect::<rusqlite::Result<Vec<_>>>().map_err(GroveError::from)
+        rows.collect::<rusqlite::Result<Vec<_>>>()
+            .map_err(GroveError::from)
     }
 
     pub fn get_errors(&self, opts: Option<EventQueryOptions>) -> Result<Vec<StoredEvent>> {
@@ -182,7 +190,8 @@ impl EventStore {
         // Remove the extra level filter added by apply_query_options if level was set
         let mut stmt = self.conn.prepare(&sql)?;
         let rows = stmt.query_map([], row_to_event)?;
-        rows.collect::<rusqlite::Result<Vec<_>>>().map_err(GroveError::from)
+        rows.collect::<rusqlite::Result<Vec<_>>>()
+            .map_err(GroveError::from)
     }
 
     pub fn get_timeline(
@@ -212,7 +221,8 @@ impl EventStore {
         }
         let mut stmt = self.conn.prepare(&sql)?;
         let rows = stmt.query_map([], row_to_event)?;
-        rows.collect::<rusqlite::Result<Vec<_>>>().map_err(GroveError::from)
+        rows.collect::<rusqlite::Result<Vec<_>>>()
+            .map_err(GroveError::from)
     }
 
     pub fn get_tool_stats(
@@ -227,7 +237,10 @@ impl EventStore {
              FROM events WHERE event_type = 'tool_end' AND tool_name IS NOT NULL",
         );
         if let Some(agent) = agent_name {
-            sql.push_str(&format!(" AND agent_name = '{}'", agent.replace('\'', "''")));
+            sql.push_str(&format!(
+                " AND agent_name = '{}'",
+                agent.replace('\'', "''")
+            ));
         }
         if let Some(s) = since {
             sql.push_str(&format!(" AND created_at >= '{}'", s.replace('\'', "''")));
@@ -243,7 +256,8 @@ impl EventStore {
                 max_duration_ms: row.get::<_, f64>(3)?,
             })
         })?;
-        rows.collect::<rusqlite::Result<Vec<_>>>().map_err(GroveError::from)
+        rows.collect::<rusqlite::Result<Vec<_>>>()
+            .map_err(GroveError::from)
     }
 
     /// Query events with optional agent, type, and since-ID filters (for feed command).
@@ -259,7 +273,10 @@ impl EventStore {
              FROM events WHERE 1=1",
         );
         if let Some(agent) = agent {
-            sql.push_str(&format!(" AND agent_name = '{}'", agent.replace('\'', "''")));
+            sql.push_str(&format!(
+                " AND agent_name = '{}'",
+                agent.replace('\'', "''")
+            ));
         }
         if let Some(et) = event_type {
             sql.push_str(&format!(" AND event_type = '{}'", et.replace('\'', "''")));
@@ -273,15 +290,12 @@ impl EventStore {
         }
         let mut stmt = self.conn.prepare(&sql)?;
         let rows = stmt.query_map([], row_to_event)?;
-        rows.collect::<rusqlite::Result<Vec<_>>>().map_err(GroveError::from)
+        rows.collect::<rusqlite::Result<Vec<_>>>()
+            .map_err(GroveError::from)
     }
 
     /// Query events for a specific task ID (across all agents with that task).
-    pub fn get_by_task(
-        &self,
-        task_id: &str,
-        limit: Option<usize>,
-    ) -> Result<Vec<StoredEvent>> {
+    pub fn get_by_task(&self, task_id: &str, limit: Option<usize>) -> Result<Vec<StoredEvent>> {
         // Events don't directly store task_id; we look for it in the data field
         // or fall back to agent_name matching. For now, join via session_id in data.
         let escaped = task_id.replace('\'', "''");
@@ -296,7 +310,8 @@ impl EventStore {
         }
         let mut stmt = self.conn.prepare(&sql)?;
         let rows = stmt.query_map([], row_to_event)?;
-        rows.collect::<rusqlite::Result<Vec<_>>>().map_err(GroveError::from)
+        rows.collect::<rusqlite::Result<Vec<_>>>()
+            .map_err(GroveError::from)
     }
 
     /// General-purpose query with optional filters.
@@ -329,10 +344,16 @@ impl EventStore {
             sql.push_str(&format!(" AND run_id = '{}'", rid.replace('\'', "''")));
         }
         if let Some(ref since) = opts.since {
-            sql.push_str(&format!(" AND created_at >= '{}'", since.replace('\'', "''")));
+            sql.push_str(&format!(
+                " AND created_at >= '{}'",
+                since.replace('\'', "''")
+            ));
         }
         if let Some(ref until) = opts.until {
-            sql.push_str(&format!(" AND created_at <= '{}'", until.replace('\'', "''")));
+            sql.push_str(&format!(
+                " AND created_at <= '{}'",
+                until.replace('\'', "''")
+            ));
         }
         if let Some(ref level) = opts.level {
             let level_str = match level {
@@ -353,7 +374,8 @@ impl EventStore {
         }
         let mut stmt = self.conn.prepare(&sql)?;
         let rows = stmt.query_map([], row_to_event)?;
-        rows.collect::<rusqlite::Result<Vec<_>>>().map_err(GroveError::from)
+        rows.collect::<rusqlite::Result<Vec<_>>>()
+            .map_err(GroveError::from)
     }
 
     /// Get the maximum event ID (for follow mode cursor).
@@ -371,9 +393,8 @@ impl EventStore {
         limit: Option<usize>,
     ) -> Result<Vec<(String, i64, StoredEvent)>> {
         // Get counts per agent
-        let mut count_sql = String::from(
-            "SELECT agent_name, COUNT(*) FROM events WHERE level = 'error'",
-        );
+        let mut count_sql =
+            String::from("SELECT agent_name, COUNT(*) FROM events WHERE level = 'error'");
         if let Some(a) = agent {
             count_sql.push_str(&format!(" AND agent_name = '{}'", a.replace('\'', "''")));
         }
@@ -415,10 +436,8 @@ impl EventStore {
                 [],
             )?
         } else if let Some(ref agent) = opts.agent_name {
-            self.conn.execute(
-                "DELETE FROM events WHERE agent_name = ?1",
-                params![agent],
-            )?
+            self.conn
+                .execute("DELETE FROM events WHERE agent_name = ?1", params![agent])?
         } else {
             0
         };
@@ -457,18 +476,28 @@ mod tests {
     #[test]
     fn test_insert_returns_id() {
         let store = EventStore::new(":memory:").unwrap();
-        let id = store.insert(&make_event("agent-a", EventType::SessionStart)).unwrap();
+        let id = store
+            .insert(&make_event("agent-a", EventType::SessionStart))
+            .unwrap();
         assert_eq!(id, 1);
-        let id2 = store.insert(&make_event("agent-a", EventType::TurnStart)).unwrap();
+        let id2 = store
+            .insert(&make_event("agent-a", EventType::TurnStart))
+            .unwrap();
         assert_eq!(id2, 2);
     }
 
     #[test]
     fn test_get_by_agent() {
         let store = EventStore::new(":memory:").unwrap();
-        store.insert(&make_event("agent-a", EventType::SessionStart)).unwrap();
-        store.insert(&make_event("agent-a", EventType::TurnStart)).unwrap();
-        store.insert(&make_event("agent-b", EventType::SessionStart)).unwrap();
+        store
+            .insert(&make_event("agent-a", EventType::SessionStart))
+            .unwrap();
+        store
+            .insert(&make_event("agent-a", EventType::TurnStart))
+            .unwrap();
+        store
+            .insert(&make_event("agent-b", EventType::SessionStart))
+            .unwrap();
 
         let events = store.get_by_agent("agent-a", None).unwrap();
         assert_eq!(events.len(), 2);
@@ -487,7 +516,9 @@ mod tests {
         let mut e = make_event("agent-a", EventType::Error);
         e.level = EventLevel::Error;
         store.insert(&e).unwrap();
-        store.insert(&make_event("agent-a", EventType::TurnStart)).unwrap();
+        store
+            .insert(&make_event("agent-a", EventType::TurnStart))
+            .unwrap();
 
         let errors = store.get_errors(None).unwrap();
         assert_eq!(errors.len(), 1);
@@ -537,21 +568,34 @@ mod tests {
     #[test]
     fn test_purge_all() {
         let store = EventStore::new(":memory:").unwrap();
-        store.insert(&make_event("a", EventType::TurnStart)).unwrap();
+        store
+            .insert(&make_event("a", EventType::TurnStart))
+            .unwrap();
         store.insert(&make_event("a", EventType::TurnEnd)).unwrap();
-        let deleted = store.purge(PurgeEventOpts { all: true, ..Default::default() }).unwrap();
+        let deleted = store
+            .purge(PurgeEventOpts {
+                all: true,
+                ..Default::default()
+            })
+            .unwrap();
         assert_eq!(deleted, 2);
     }
 
     #[test]
     fn test_purge_by_agent() {
         let store = EventStore::new(":memory:").unwrap();
-        store.insert(&make_event("alice", EventType::TurnStart)).unwrap();
-        store.insert(&make_event("bob", EventType::TurnStart)).unwrap();
-        let deleted = store.purge(PurgeEventOpts {
-            agent_name: Some("alice".to_string()),
-            ..Default::default()
-        }).unwrap();
+        store
+            .insert(&make_event("alice", EventType::TurnStart))
+            .unwrap();
+        store
+            .insert(&make_event("bob", EventType::TurnStart))
+            .unwrap();
+        let deleted = store
+            .purge(PurgeEventOpts {
+                agent_name: Some("alice".to_string()),
+                ..Default::default()
+            })
+            .unwrap();
         assert_eq!(deleted, 1);
     }
 
@@ -561,7 +605,9 @@ mod tests {
         let mut e = make_event("agent-a", EventType::SessionStart);
         e.run_id = Some("run-1".to_string());
         store.insert(&e).unwrap();
-        store.insert(&make_event("agent-b", EventType::SessionStart)).unwrap();
+        store
+            .insert(&make_event("agent-b", EventType::SessionStart))
+            .unwrap();
 
         let events = store.get_by_run("run-1", None).unwrap();
         assert_eq!(events.len(), 1);
@@ -570,8 +616,12 @@ mod tests {
     #[test]
     fn test_query_all_no_filters() {
         let store = EventStore::new(":memory:").unwrap();
-        store.insert(&make_event("agent-a", EventType::SessionStart)).unwrap();
-        store.insert(&make_event("agent-b", EventType::TurnStart)).unwrap();
+        store
+            .insert(&make_event("agent-a", EventType::SessionStart))
+            .unwrap();
+        store
+            .insert(&make_event("agent-b", EventType::TurnStart))
+            .unwrap();
         let opts = EventQueryOptions::default();
         let events = store.query(None, None, None, &opts, false).unwrap();
         assert_eq!(events.len(), 2);
@@ -580,19 +630,31 @@ mod tests {
     #[test]
     fn test_query_with_agent_filter() {
         let store = EventStore::new(":memory:").unwrap();
-        store.insert(&make_event("agent-a", EventType::SessionStart)).unwrap();
-        store.insert(&make_event("agent-b", EventType::TurnStart)).unwrap();
+        store
+            .insert(&make_event("agent-a", EventType::SessionStart))
+            .unwrap();
+        store
+            .insert(&make_event("agent-b", EventType::TurnStart))
+            .unwrap();
         let opts = EventQueryOptions::default();
-        let events = store.query(Some("agent-a"), None, None, &opts, false).unwrap();
+        let events = store
+            .query(Some("agent-a"), None, None, &opts, false)
+            .unwrap();
         assert_eq!(events.len(), 1);
     }
 
     #[test]
     fn test_query_multi_agent() {
         let store = EventStore::new(":memory:").unwrap();
-        store.insert(&make_event("agent-a", EventType::SessionStart)).unwrap();
-        store.insert(&make_event("agent-b", EventType::TurnStart)).unwrap();
-        store.insert(&make_event("agent-c", EventType::TurnEnd)).unwrap();
+        store
+            .insert(&make_event("agent-a", EventType::SessionStart))
+            .unwrap();
+        store
+            .insert(&make_event("agent-b", EventType::TurnStart))
+            .unwrap();
+        store
+            .insert(&make_event("agent-c", EventType::TurnEnd))
+            .unwrap();
         let agents = vec!["agent-a".to_string(), "agent-b".to_string()];
         let opts = EventQueryOptions::default();
         let events = store.query(None, Some(&agents), None, &opts, true).unwrap();
@@ -602,10 +664,10 @@ mod tests {
     #[test]
     fn test_get_timeline() {
         let store = EventStore::new(":memory:").unwrap();
-        store.insert(&make_event("agent-a", EventType::TurnStart)).unwrap();
-        let events = store
-            .get_timeline("2000-01-01T00:00:00Z", None)
+        store
+            .insert(&make_event("agent-a", EventType::TurnStart))
             .unwrap();
+        let events = store.get_timeline("2000-01-01T00:00:00Z", None).unwrap();
         assert_eq!(events.len(), 1);
     }
 }

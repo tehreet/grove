@@ -242,9 +242,8 @@ enum Commands {
     /// Show session metrics
     Metrics(MetricsArgs),
 
-    /// Run evaluations (coming soon)
-    #[command(hide = true)]
-    Eval(PassthroughArgs),
+    /// Run evaluations
+    Eval(EvalArgs),
 
     /// Refresh .overstory/ managed files from embedded defaults
     Update(UpdateArgs),
@@ -1101,6 +1100,8 @@ enum CoordinatorSubcommand {
     Status(CoordinatorStatusArgs),
     /// Send a message to the coordinator's mailbox
     Send(CoordinatorSendArgs),
+    /// Send a message to coordinator and wait for a reply
+    Ask(CoordinatorAskArgs),
     /// Tail the coordinator log file
     Logs(CoordinatorLogsArgs),
 }
@@ -1170,6 +1171,22 @@ struct CoordinatorSendArgs {
 }
 
 #[derive(Args)]
+struct CoordinatorAskArgs {
+    /// Message body to send to coordinator
+    #[arg(long)]
+    body: String,
+    /// From agent name
+    #[arg(long, default_value = "operator")]
+    from: String,
+    /// Timeout in seconds
+    #[arg(long, default_value = "30")]
+    timeout: u64,
+    /// Output as JSON
+    #[arg(long)]
+    json: bool,
+}
+
+#[derive(Args)]
 struct CoordinatorLogsArgs {
     /// Follow log output (poll for new content)
     #[arg(long, short = 'f')]
@@ -1177,6 +1194,22 @@ struct CoordinatorLogsArgs {
     /// Number of lines to show from the end
     #[arg(long, default_value = "50")]
     lines: usize,
+    /// Output as JSON
+    #[arg(long)]
+    json: bool,
+}
+
+#[derive(Args)]
+struct EvalArgs {
+    /// Scenario file to evaluate
+    #[arg(long)]
+    scenario: Option<PathBuf>,
+    /// Assertions file for the scenario
+    #[arg(long)]
+    assertions: Option<PathBuf>,
+    /// Validate inputs without running the evaluation
+    #[arg(long)]
+    dry_run: bool,
     /// Output as JSON
     #[arg(long)]
     json: bool,
@@ -1344,12 +1377,9 @@ fn run_command(
                 project,
             ),
         },
-        Commands::Prime(args) => commands::prime::execute(
-            args.agent,
-            args.compact,
-            args.json || json,
-            project,
-        ),
+        Commands::Prime(args) => {
+            commands::prime::execute(args.agent, args.compact, args.json || json, project)
+        }
         Commands::Stop(args) => commands::stop::execute(
             &args.agent_name,
             args.force,
@@ -1376,11 +1406,9 @@ fn run_command(
             };
             tui::launch_dashboard(&project_root).map_err(|e| e.to_string())
         }
-        Commands::Inspect(args) => commands::inspect::execute(
-            &args.agent_name,
-            args.json || json,
-            project,
-        ),
+        Commands::Inspect(args) => {
+            commands::inspect::execute(&args.agent_name, args.json || json, project)
+        }
         Commands::Clean(args) => commands::clean::execute(
             args.force,
             args.all,
@@ -1420,34 +1448,38 @@ fn run_command(
                 a.json || json,
                 project,
             ),
-            CoordinatorSubcommand::Logs(a) => commands::coordinator::execute_logs(
-                a.follow,
-                a.lines,
+            CoordinatorSubcommand::Ask(a) => commands::coordinator::execute_ask(
+                &a.body,
+                &a.from,
+                a.timeout,
                 a.json || json,
                 project,
             ),
+            CoordinatorSubcommand::Logs(a) => {
+                commands::coordinator::execute_logs(a.follow, a.lines, a.json || json, project)
+            }
         },
         Commands::Supervisor(_) => {
             println!("grove supervisor: deprecated. Use `grove coordinator` instead.");
             Ok(())
         }
         Commands::Hooks(args) => match args.command {
-            HooksSubcommand::Install(a) => commands::hooks::execute_install(
-                a.force,
-                a.json || json,
-                project,
-            ),
-            HooksSubcommand::Uninstall(a) => commands::hooks::execute_uninstall(a.json || json, project),
+            HooksSubcommand::Install(a) => {
+                commands::hooks::execute_install(a.force, a.json || json, project)
+            }
+            HooksSubcommand::Uninstall(a) => {
+                commands::hooks::execute_uninstall(a.json || json, project)
+            }
             HooksSubcommand::Status(a) => commands::hooks::execute_status(a.json || json, project),
         },
         Commands::Monitor(args) => match args.command {
-            MonitorSubcommand::Start(a) => commands::monitor::execute_start(
-                a.foreground,
-                a.json || json,
-                project,
-            ),
+            MonitorSubcommand::Start(a) => {
+                commands::monitor::execute_start(a.foreground, a.json || json, project)
+            }
             MonitorSubcommand::Stop(a) => commands::monitor::execute_stop(a.json || json, project),
-            MonitorSubcommand::Status(a) => commands::monitor::execute_status(a.json || json, project),
+            MonitorSubcommand::Status(a) => {
+                commands::monitor::execute_status(a.json || json, project)
+            }
         },
         Commands::Mail(args) => match args.command {
             MailSubcommand::List(a) => {
@@ -1456,11 +1488,22 @@ fn run_command(
             MailSubcommand::Check(a) => commands::mail::execute_check(&a.agent, a.inject, json),
             MailSubcommand::Read(a) => commands::mail::execute_read(&a.id, json),
             MailSubcommand::Send(a) => commands::mail::execute_send(
-                &a.to, &a.subject, &a.body, &a.message_type, &a.priority,
-                a.thread.as_deref(), &a.agent, a.payload.as_deref(), json,
+                &a.to,
+                &a.subject,
+                &a.body,
+                &a.message_type,
+                &a.priority,
+                a.thread.as_deref(),
+                &a.agent,
+                a.payload.as_deref(),
+                json,
             ),
-            MailSubcommand::Reply(a) => commands::mail::execute_reply(&a.id, &a.body, &a.agent, json),
-            MailSubcommand::Purge(a) => commands::mail::execute_purge(a.agent.as_deref(), a.all, a.days, json),
+            MailSubcommand::Reply(a) => {
+                commands::mail::execute_reply(&a.id, &a.body, &a.agent, json)
+            }
+            MailSubcommand::Purge(a) => {
+                commands::mail::execute_purge(a.agent.as_deref(), a.all, a.days, json)
+            }
         },
         Commands::Merge(args) => commands::merge::execute(
             args.branch,
@@ -1479,38 +1522,27 @@ fn run_command(
             project,
         ),
         Commands::Group(args) => match args.command {
-            GroupSubcommand::Create(a) => commands::group::execute_create(
-                &a.name,
-                a.ids,
-                a.json || json,
-                project,
-            ),
-            GroupSubcommand::Status(a) => commands::group::execute_status(
-                a.group_id,
-                a.json || json,
-                project,
-            ),
-            GroupSubcommand::Add(a) => commands::group::execute_add(
-                &a.group_id,
-                a.ids,
-                a.json || json,
-                project,
-            ),
-            GroupSubcommand::Remove(a) => commands::group::execute_remove(
-                &a.group_id,
-                a.ids,
-                a.json || json,
-                project,
-            ),
-            GroupSubcommand::Close(a) => commands::group::execute_close(
-                &a.group_id,
-                a.json || json,
-                project,
-            ),
+            GroupSubcommand::Create(a) => {
+                commands::group::execute_create(&a.name, a.ids, a.json || json, project)
+            }
+            GroupSubcommand::Status(a) => {
+                commands::group::execute_status(a.group_id, a.json || json, project)
+            }
+            GroupSubcommand::Add(a) => {
+                commands::group::execute_add(&a.group_id, a.ids, a.json || json, project)
+            }
+            GroupSubcommand::Remove(a) => {
+                commands::group::execute_remove(&a.group_id, a.ids, a.json || json, project)
+            }
+            GroupSubcommand::Close(a) => {
+                commands::group::execute_close(&a.group_id, a.json || json, project)
+            }
             GroupSubcommand::List(a) => commands::group::execute_list(a.json || json, project),
         },
         Commands::Worktree(args) => match args.command {
-            WorktreeSubcommand::List(a) => commands::worktree_cmd::execute_list(a.json || json, project),
+            WorktreeSubcommand::List(a) => {
+                commands::worktree_cmd::execute_list(a.json || json, project)
+            }
             WorktreeSubcommand::Clean(a) => {
                 let all = a.all;
                 commands::worktree_cmd::execute_clean(
@@ -1523,17 +1555,12 @@ fn run_command(
             }
         },
         Commands::Log(args) => match args.command {
-            LogSubcommand::SessionStart(a) => commands::log::execute_session_start(
-                &a.agent,
-                a.json || json,
-                project,
-            ),
-            LogSubcommand::SessionEnd(a) => commands::log::execute_session_end(
-                &a.agent,
-                a.exit_code,
-                a.json || json,
-                project,
-            ),
+            LogSubcommand::SessionStart(a) => {
+                commands::log::execute_session_start(&a.agent, a.json || json, project)
+            }
+            LogSubcommand::SessionEnd(a) => {
+                commands::log::execute_session_end(&a.agent, a.exit_code, a.json || json, project)
+            }
         },
         Commands::Logs(args) => commands::logs::execute(
             args.agent,
@@ -1559,11 +1586,9 @@ fn run_command(
                 commands::watch_cmd::execute_status(a.json || json, project)
             }
         },
-        Commands::Trace(args) => commands::trace::execute(
-            &args.subject,
-            args.json || json,
-            project,
-        ),
+        Commands::Trace(args) => {
+            commands::trace::execute(&args.subject, args.json || json, project)
+        }
         Commands::Ecosystem(args) => commands::ecosystem::execute(args.json || json, project),
         Commands::Feed(args) => commands::feed::execute(
             args.follow,
@@ -1573,12 +1598,9 @@ fn run_command(
             json,
             project,
         ),
-        Commands::Errors(args) => commands::errors::execute(
-            args.agent,
-            args.limit,
-            args.json || json,
-            project,
-        ),
+        Commands::Errors(args) => {
+            commands::errors::execute(args.agent, args.limit, args.json || json, project)
+        }
         Commands::Replay(args) => commands::replay::execute(
             args.run,
             args.agents,
@@ -1592,24 +1614,30 @@ fn run_command(
             let cmd_json = args.json || json;
             match args.command {
                 None => commands::run::execute_current(cmd_json, project),
-                Some(RunSubcommand::List(a)) => commands::run::execute_list(a.last, a.json || cmd_json, project),
-                Some(RunSubcommand::Show(a)) => commands::run::execute_show(&a.id, a.json || cmd_json, project),
-                Some(RunSubcommand::Complete(a)) => commands::run::execute_complete(a.json || cmd_json, project),
+                Some(RunSubcommand::List(a)) => {
+                    commands::run::execute_list(a.last, a.json || cmd_json, project)
+                }
+                Some(RunSubcommand::Show(a)) => {
+                    commands::run::execute_show(&a.id, a.json || cmd_json, project)
+                }
+                Some(RunSubcommand::Complete(a)) => {
+                    commands::run::execute_complete(a.json || cmd_json, project)
+                }
             }
         }
-        Commands::Costs(args) => commands::costs::execute(
-            args.agent,
-            args.run,
-            args.live,
+        Commands::Costs(args) => {
+            commands::costs::execute(args.agent, args.run, args.live, args.json || json, project)
+        }
+        Commands::Metrics(args) => {
+            commands::metrics_cmd::execute(args.last, args.json || json, project)
+        }
+        Commands::Eval(args) => commands::eval::execute(
+            args.scenario.as_deref(),
+            args.assertions.as_deref(),
+            args.dry_run,
             args.json || json,
             project,
         ),
-        Commands::Metrics(args) => commands::metrics_cmd::execute(
-            args.last,
-            args.json || json,
-            project,
-        ),
-        Commands::Eval(_) => not_yet_implemented("eval", json),
         Commands::Update(args) => commands::update_cmd::execute(
             commands::update_cmd::UpdateOptions {
                 agents: args.agents,
@@ -1620,34 +1648,18 @@ fn run_command(
             },
             project,
         ),
-        Commands::Upgrade(args) => commands::upgrade_cmd::execute(
-            commands::upgrade_cmd::UpgradeOptions {
+        Commands::Upgrade(args) => {
+            commands::upgrade_cmd::execute(commands::upgrade_cmd::UpgradeOptions {
                 check: args.check,
                 all: args.all,
                 json: args.json || json,
-            },
-        ),
+            })
+        }
         Commands::Completions(args) => {
             let mut cmd = Cli::command();
             commands::completions::execute(args.shell, &mut cmd)
         }
     }
-}
-
-fn not_yet_implemented(command: &str, json: bool) -> Result<(), String> {
-    if json {
-        println!(
-            "{}",
-            serde_json::json!({
-                "command": command,
-                "error": "not yet implemented",
-                "timestamp": chrono::Utc::now().to_rfc3339(),
-            })
-        );
-    } else {
-        println!("{} {}: not yet implemented", brand_bold("grove"), command);
-    }
-    Ok(())
 }
 
 // ---------------------------------------------------------------------------
@@ -1676,16 +1688,5 @@ mod tests {
     #[test]
     fn test_suggest_command_no_match() {
         assert!(suggest_command("xxxxxxxxxx").is_none());
-    }
-
-    #[test]
-    fn test_not_yet_implemented_plain() {
-        // smoke test — just verify it doesn't panic
-        assert!(not_yet_implemented("status", false).is_ok());
-    }
-
-    #[test]
-    fn test_not_yet_implemented_json() {
-        assert!(not_yet_implemented("status", true).is_ok());
     }
 }

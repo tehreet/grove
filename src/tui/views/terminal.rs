@@ -47,7 +47,9 @@ fn render_header(f: &mut Frame, app: &App, area: Rect) {
         Span::styled(" TERMINAL: ", Style::default().fg(MUTED_GRAY)),
         Span::styled(
             agent.agent_name.clone(),
-            Style::default().fg(ACCENT_ORANGE).add_modifier(Modifier::BOLD),
+            Style::default()
+                .fg(ACCENT_ORANGE)
+                .add_modifier(Modifier::BOLD),
         ),
         Span::styled("  ", Style::default()),
         Span::styled(icon, Style::default().fg(state_color)),
@@ -55,11 +57,26 @@ fn render_header(f: &mut Frame, app: &App, area: Rect) {
             format!(" {}  ", format!("{:?}", agent.state).to_lowercase()),
             Style::default().fg(state_color),
         ),
-        Span::styled("[esc]", Style::default().fg(BRAND_PRIMARY).add_modifier(Modifier::BOLD)),
+        Span::styled(
+            "[esc]",
+            Style::default()
+                .fg(BRAND_PRIMARY)
+                .add_modifier(Modifier::BOLD),
+        ),
         Span::styled(" back  ", Style::default().fg(MUTED_GRAY)),
-        Span::styled("[f]", Style::default().fg(BRAND_PRIMARY).add_modifier(Modifier::BOLD)),
+        Span::styled(
+            "[f]",
+            Style::default()
+                .fg(BRAND_PRIMARY)
+                .add_modifier(Modifier::BOLD),
+        ),
         Span::styled(" fullscreen  ", Style::default().fg(MUTED_GRAY)),
-        Span::styled("[s]", Style::default().fg(BRAND_PRIMARY).add_modifier(Modifier::BOLD)),
+        Span::styled(
+            "[s]",
+            Style::default()
+                .fg(BRAND_PRIMARY)
+                .add_modifier(Modifier::BOLD),
+        ),
         Span::styled(" split", Style::default().fg(MUTED_GRAY)),
     ]);
 
@@ -68,7 +85,11 @@ fn render_header(f: &mut Frame, app: &App, area: Rect) {
 
 fn render_content(f: &mut Frame, app: &mut App, area: Rect) {
     let block = Block::new()
-        .title(if app.terminal_fullscreen { " TERMINAL [f fullscreen off] " } else { " OUTPUT " })
+        .title(if app.terminal_fullscreen {
+            " TERMINAL [f fullscreen off] "
+        } else {
+            " OUTPUT "
+        })
         .borders(Borders::ALL)
         .border_type(BorderType::Rounded)
         .border_style(Style::default().fg(BORDER_FOCUSED));

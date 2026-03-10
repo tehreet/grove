@@ -47,7 +47,10 @@ pub fn execute(
 
     if !std::path::PathBuf::from(&events_db).exists() {
         if json {
-            let out = ErrorsOutput { groups: vec![], total: 0 };
+            let out = ErrorsOutput {
+                groups: vec![],
+                total: 0,
+            };
             println!("{}", json_output("errors", &out));
         } else {
             println!("{}", muted("No events.db found"));
@@ -62,7 +65,11 @@ pub fn execute(
 
     let groups: Vec<AgentErrors> = grouped
         .into_iter()
-        .map(|(agent_name, count, latest)| AgentErrors { agent_name, count, latest })
+        .map(|(agent_name, count, latest)| AgentErrors {
+            agent_name,
+            count,
+            latest,
+        })
         .collect();
 
     if json {
@@ -77,12 +84,22 @@ pub fn execute(
             println!("{}", muted("─────────────────────────────────────────────"));
             for g in &groups {
                 let ts = &g.latest.created_at;
-                let short_ts = if ts.len() >= 19 { &ts[..19] } else { ts.as_str() };
+                let short_ts = if ts.len() >= 19 {
+                    &ts[..19]
+                } else {
+                    ts.as_str()
+                };
                 let data = g
                     .latest
                     .data
                     .as_ref()
-                    .map(|d| if d.len() > 80 { format!("{}...", &d[..80]) } else { d.clone() })
+                    .map(|d| {
+                        if d.len() > 80 {
+                            format!("{}...", &d[..80])
+                        } else {
+                            d.clone()
+                        }
+                    })
                     .unwrap_or_default();
                 println!(
                     "  {} {} {} (latest: {})",

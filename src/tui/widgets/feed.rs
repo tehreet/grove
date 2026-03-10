@@ -45,17 +45,17 @@ pub fn render(f: &mut Frame, app: &App, area: Rect) {
     let items: Vec<ListItem> = visible
         .iter()
         .map(|ev| {
-            let time_str = ev
-                .created_at
-                .get(11..19)
-                .unwrap_or("??:??:??");
+            let time_str = ev.created_at.get(11..19).unwrap_or("??:??:??");
 
             let agent_color = agent_color_for(&ev.agent_name);
 
             let event_type_str = event_type_to_str(&ev.event_type);
             let tool_part = if let Some(ref tool) = ev.tool_name {
                 let (icon, desc) = format_tool_event(tool, ev.tool_args.as_deref());
-                let dur = ev.tool_duration_ms.map(|ms| format!(" ({}ms)", ms)).unwrap_or_default();
+                let dur = ev
+                    .tool_duration_ms
+                    .map(|ms| format!(" ({}ms)", ms))
+                    .unwrap_or_default();
                 format!("{} {}{}", icon, desc, dur)
             } else {
                 match &ev.event_type {
@@ -67,10 +67,7 @@ pub fn render(f: &mut Frame, app: &App, area: Rect) {
             };
 
             let line = Line::from(vec![
-                Span::styled(
-                    format!("{} ", time_str),
-                    Style::default().fg(MUTED_GRAY),
-                ),
+                Span::styled(format!("{} ", time_str), Style::default().fg(MUTED_GRAY)),
                 Span::styled(
                     format!("{} ", truncate(&ev.agent_name, 16)),
                     Style::default()
@@ -85,9 +82,10 @@ pub fn render(f: &mut Frame, app: &App, area: Rect) {
         .collect();
 
     let list = if items.is_empty() {
-        List::new(vec![ListItem::new(
-            Span::styled("  no events yet", Style::default().fg(MUTED_GRAY)),
-        )])
+        List::new(vec![ListItem::new(Span::styled(
+            "  no events yet",
+            Style::default().fg(MUTED_GRAY),
+        ))])
         .block(block)
     } else {
         List::new(items).block(block)
@@ -108,7 +106,9 @@ fn agent_color_for(name: &str) -> Color {
         Color::Rgb(255, 85, 85),   // red
         Color::Rgb(248, 248, 242), // foreground
     ];
-    let hash: usize = name.bytes().fold(0usize, |acc, b| acc.wrapping_add(b as usize));
+    let hash: usize = name
+        .bytes()
+        .fold(0usize, |acc, b| acc.wrapping_add(b as usize));
     palette[hash % palette.len()]
 }
 

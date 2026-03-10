@@ -6,9 +6,7 @@ use std::process::Command;
 use serde_yaml::Value;
 
 use crate::errors::{ConfigError, GroveError, ValidationError};
-use crate::types::{
-    default_verification_config, OverstoryConfig, TaskTrackerBackend,
-};
+use crate::types::{default_verification_config, OverstoryConfig, TaskTrackerBackend};
 
 const CONFIG_FILENAME: &str = "config.yaml";
 const CONFIG_LOCAL_FILENAME: &str = "config.local.yaml";
@@ -39,9 +37,7 @@ pub fn resolve_project_root(
         .output()
     {
         if output.status.success() {
-            let git_common_dir = String::from_utf8_lossy(&output.stdout)
-                .trim()
-                .to_string();
+            let git_common_dir = String::from_utf8_lossy(&output.stdout).trim().to_string();
             let abs_git_common = if Path::new(&git_common_dir).is_absolute() {
                 PathBuf::from(&git_common_dir)
             } else {
@@ -99,9 +95,7 @@ fn migrate_deprecated_watchdog_keys(parsed: &mut Value) {
         if let Value::Mapping(ref mut wd) = watchdog {
             // tier1Enabled → tier0Enabled (mechanical daemon)
             if let Some(v) = wd.remove("tier1Enabled") {
-                eprintln!(
-                    "[grove] DEPRECATED: watchdog.tier1Enabled → use watchdog.tier0Enabled"
-                );
+                eprintln!("[grove] DEPRECATED: watchdog.tier1Enabled → use watchdog.tier0Enabled");
                 wd.insert(Value::String("tier0Enabled".to_string()), v);
             }
             // tier1IntervalMs → tier0IntervalMs
@@ -113,9 +107,7 @@ fn migrate_deprecated_watchdog_keys(parsed: &mut Value) {
             }
             // tier2Enabled → tier1Enabled (AI triage)
             if let Some(v) = wd.remove("tier2Enabled") {
-                eprintln!(
-                    "[grove] DEPRECATED: watchdog.tier2Enabled → use watchdog.tier1Enabled"
-                );
+                eprintln!("[grove] DEPRECATED: watchdog.tier2Enabled → use watchdog.tier1Enabled");
                 wd.insert(Value::String("tier1Enabled".to_string()), v);
             }
         }
@@ -147,10 +139,7 @@ fn migrate_deprecated_task_tracker_keys(parsed: &mut Value) {
             Value::String("beads".to_string()),
         );
         tt.insert(Value::String("enabled".to_string()), Value::Bool(enabled));
-        mapping.insert(
-            Value::String("taskTracker".to_string()),
-            Value::Mapping(tt),
-        );
+        mapping.insert(Value::String("taskTracker".to_string()), Value::Mapping(tt));
     } else if let Some(seeds) = mapping.remove("seeds") {
         let enabled = seeds
             .get("enabled")
@@ -165,20 +154,17 @@ fn migrate_deprecated_task_tracker_keys(parsed: &mut Value) {
             Value::String("seeds".to_string()),
         );
         tt.insert(Value::String("enabled".to_string()), Value::Bool(enabled));
-        mapping.insert(
-            Value::String("taskTracker".to_string()),
-            Value::Mapping(tt),
-        );
+        mapping.insert(Value::String("taskTracker".to_string()), Value::Mapping(tt));
     }
 }
 
 /// Validate a fully-merged config.
 fn validate_config(config: &OverstoryConfig) -> Result<(), ValidationError> {
     if config.project.root.is_empty() {
-        return Err(
-            ValidationError::new("project.root is required and must be a non-empty string")
-                .with_field("project.root"),
-        );
+        return Err(ValidationError::new(
+            "project.root is required and must be a non-empty string",
+        )
+        .with_field("project.root"));
     }
 
     if config.project.canonical_branch.is_empty() {
@@ -394,10 +380,7 @@ fn validate_config(config: &OverstoryConfig) -> Result<(), ValidationError> {
 }
 
 /// Deserialize a YAML Value into OverstoryConfig, merging with defaults.
-fn value_to_config(
-    default: &OverstoryConfig,
-    value: Value,
-) -> Result<OverstoryConfig, GroveError> {
+fn value_to_config(default: &OverstoryConfig, value: Value) -> Result<OverstoryConfig, GroveError> {
     let default_value = serde_yaml::to_value(default)
         .map_err(|e| ConfigError::new(format!("Failed to serialize defaults: {e}")))?;
     let merged = deep_merge(default_value, value);
@@ -458,9 +441,7 @@ pub fn load_config(
         }
     }
 
-    let config_path = resolved_root
-        .join(OVERSTORY_DIR)
-        .join(CONFIG_FILENAME);
+    let config_path = resolved_root.join(OVERSTORY_DIR).join(CONFIG_FILENAME);
     let local_config_path = resolved_root
         .join(OVERSTORY_DIR)
         .join(CONFIG_LOCAL_FILENAME);
@@ -493,11 +474,13 @@ pub fn load_config(
         migrate_deprecated_watchdog_keys(&mut local_parsed);
         migrate_deprecated_task_tracker_keys(&mut local_parsed);
         // Re-serialize current config as Value and merge local on top
-        let current_value = serde_yaml::to_value(&config)
-            .map_err(|e| ConfigError::new(format!("Failed to serialize config for local merge: {e}")))?;
+        let current_value = serde_yaml::to_value(&config).map_err(|e| {
+            ConfigError::new(format!("Failed to serialize config for local merge: {e}"))
+        })?;
         let merged = deep_merge(current_value, local_parsed);
-        config = serde_yaml::from_value(merged)
-            .map_err(|e| ConfigError::new(format!("Failed to deserialize after local merge: {e}")))?;
+        config = serde_yaml::from_value(merged).map_err(|e| {
+            ConfigError::new(format!("Failed to deserialize after local merge: {e}"))
+        })?;
     }
 
     // Always set project.root to the resolved root (overrides whatever was in YAML)
@@ -736,10 +719,7 @@ watchdog:
         assert!(wd.get("tier0Enabled").is_some());
         assert_eq!(wd.get("tier0Enabled").unwrap().as_bool(), Some(true));
         assert!(wd.get("tier0IntervalMs").is_some());
-        assert_eq!(
-            wd.get("tier0IntervalMs").unwrap().as_u64(),
-            Some(15_000)
-        );
+        assert_eq!(wd.get("tier0IntervalMs").unwrap().as_u64(), Some(15_000));
         assert!(wd.get("tier1Enabled").is_some()); // was tier2Enabled
         assert!(wd.get("tier2Enabled").is_none()); // removed
     }
@@ -794,11 +774,7 @@ seeds:
         let target: Value = serde_yaml::from_str("items:\n  - a\n  - b").unwrap();
         let source: Value = serde_yaml::from_str("items:\n  - x").unwrap();
         let merged = deep_merge(target, source);
-        let items = merged
-            .get("items")
-            .unwrap()
-            .as_sequence()
-            .unwrap();
+        let items = merged.get("items").unwrap().as_sequence().unwrap();
         assert_eq!(items.len(), 1);
         assert_eq!(items[0].as_str(), Some("x"));
     }

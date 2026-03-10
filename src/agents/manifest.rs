@@ -8,12 +8,14 @@ use crate::types::AgentManifest;
 pub fn load_manifest(path: &Path) -> Result<AgentManifest, String> {
     let content = std::fs::read_to_string(path)
         .map_err(|e| format!("Failed to read manifest at {}: {e}", path.display()))?;
-    serde_json::from_str(&content)
-        .map_err(|e| format!("Failed to parse manifest JSON: {e}"))
+    serde_json::from_str(&content).map_err(|e| format!("Failed to parse manifest JSON: {e}"))
 }
 
 /// Load an agent manifest relative to a project root using a relative path.
-pub fn load_manifest_from_project(project_root: &Path, manifest_path: &str) -> Result<AgentManifest, String> {
+pub fn load_manifest_from_project(
+    project_root: &Path,
+    manifest_path: &str,
+) -> Result<AgentManifest, String> {
     let full_path = project_root.join(manifest_path);
     load_manifest(&full_path)
 }
@@ -50,8 +52,8 @@ mod tests {
 
     #[test]
     fn test_load_manifest_invalid_json() {
-        use tempfile::NamedTempFile;
         use std::io::Write;
+        use tempfile::NamedTempFile;
 
         let mut f = NamedTempFile::new().unwrap();
         write!(f, "not valid json {{{{").unwrap();

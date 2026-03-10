@@ -50,7 +50,10 @@ pub fn execute(
 
     if !PathBuf::from(&events_db).exists() {
         if json {
-            let out = ReplayOutput { events: vec![], count: 0 };
+            let out = ReplayOutput {
+                events: vec![],
+                count: 0,
+            };
             println!("{}", json_output("replay", &out));
         } else {
             println!("{}", muted("No events.db found"));
@@ -63,17 +66,23 @@ pub fn execute(
         until,
         level: None,
         limit: limit.or(Some(200)),
-
     };
 
-    let agents_slice: Option<&[String]> = if agents.is_empty() { None } else { Some(&agents) };
+    let agents_slice: Option<&[String]> = if agents.is_empty() {
+        None
+    } else {
+        Some(&agents)
+    };
     let store = EventStore::new(&events_db).map_err(|e| e.to_string())?;
     let events = store
         .query(None, agents_slice, run.as_deref(), &opts, true)
         .map_err(|e| e.to_string())?;
 
     if json {
-        let out = ReplayOutput { count: events.len(), events };
+        let out = ReplayOutput {
+            count: events.len(),
+            events,
+        };
         println!("{}", json_output("replay", &out));
         return Ok(());
     }

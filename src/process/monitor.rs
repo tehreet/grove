@@ -38,9 +38,7 @@ pub async fn monitor_agent_stdout(
             if val.get("type").and_then(|t| t.as_str()) == Some("result") {
                 if let Some(cost) = val.get("cost_usd").and_then(|c| c.as_f64()) {
                     cumulative_cost += cost;
-                } else if let Some(cost) = val
-                    .pointer("/statistics/cost")
-                    .and_then(|c| c.as_f64())
+                } else if let Some(cost) = val.pointer("/statistics/cost").and_then(|c| c.as_f64())
                 {
                     cumulative_cost += cost;
                 }

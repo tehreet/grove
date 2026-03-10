@@ -1015,7 +1015,6 @@ impl App {
 // Helpers
 // ---------------------------------------------------------------------------
 
-
 /// Capture agent output with fallback chain:
 /// 1. Try tmux capture-pane (backward compat with overstory agents)
 /// 2. If tmux fails or no session, read from .overstory/logs/<agent_name>/ (headless agents)

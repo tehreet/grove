@@ -6,7 +6,7 @@
 //! Use --all for full cleanup or individual flags for selective cleanup.
 
 use std::fs;
-use std::path::{Path};
+use std::path::Path;
 use std::process::Command;
 
 use serde::Serialize;
@@ -94,8 +94,7 @@ pub fn execute(
         result.sessions_cleared = wipe_sqlite_db(&format!("{overstory}/sessions.db"));
     }
     if all {
-        result.merge_queue_cleared =
-            wipe_sqlite_db(&format!("{overstory}/merge-queue.db"));
+        result.merge_queue_cleared = wipe_sqlite_db(&format!("{overstory}/merge-queue.db"));
     }
 
     // 5. Clear directories
@@ -111,11 +110,9 @@ pub fn execute(
 
     // 6. Delete state files (--all only)
     if all {
-        result.nudge_state_cleared =
-            delete_file(&format!("{overstory}/nudge-state.json"));
+        result.nudge_state_cleared = delete_file(&format!("{overstory}/nudge-state.json"));
         let _ = clear_directory(&format!("{overstory}/pending-nudges"));
-        result.current_run_cleared =
-            delete_file(&format!("{overstory}/current-run.txt"));
+        result.current_run_cleared = delete_file(&format!("{overstory}/current-run.txt"));
     }
 
     if json {
@@ -136,14 +133,22 @@ pub fn execute(
         lines.push(format!(
             "Removed {} worktree{}",
             result.worktrees_cleaned,
-            if result.worktrees_cleaned == 1 { "" } else { "s" }
+            if result.worktrees_cleaned == 1 {
+                ""
+            } else {
+                "s"
+            }
         ));
     }
     if result.branches_deleted > 0 {
         lines.push(format!(
             "Deleted {} orphaned branch{}",
             result.branches_deleted,
-            if result.branches_deleted == 1 { "" } else { "es" }
+            if result.branches_deleted == 1 {
+                ""
+            } else {
+                "es"
+            }
         ));
     }
     if result.mail_wiped {
@@ -356,7 +361,6 @@ fn delete_file(file_path: &str) -> bool {
 // Tests
 // ---------------------------------------------------------------------------
 
-
 /// Kill all active agent processes by PID.
 fn kill_project_agent_pids(overstory_dir: &str) -> usize {
     let sessions_db = format!("{overstory_dir}/sessions.db");
@@ -372,7 +376,9 @@ fn kill_project_agent_pids(overstory_dir: &str) -> usize {
     for session in &active {
         if let Some(pid) = session.pid {
             if crate::watchdog::is_pid_alive(pid) {
-                let _ = Command::new("kill").args(["-15", &pid.to_string()]).output();
+                let _ = Command::new("kill")
+                    .args(["-15", &pid.to_string()])
+                    .output();
                 killed += 1;
             }
         }
@@ -389,7 +395,17 @@ mod tests {
     #[test]
     fn test_execute_no_flags_returns_error() {
         let result = execute(
-            false, false, false, false, false, false, false, false, false, false, false,
+            false,
+            false,
+            false,
+            false,
+            false,
+            false,
+            false,
+            false,
+            false,
+            false,
+            false,
             Some(Path::new("/tmp")),
         );
         assert!(result.is_err());
@@ -400,7 +416,17 @@ mod tests {
     fn test_execute_all_no_overstory_dir() {
         // Should not panic when .overstory doesn't exist
         let result = execute(
-            false, true, false, false, false, false, false, false, false, false, false,
+            false,
+            true,
+            false,
+            false,
+            false,
+            false,
+            false,
+            false,
+            false,
+            false,
+            false,
             Some(Path::new("/tmp")),
         );
         // May succeed or fail — just must not panic

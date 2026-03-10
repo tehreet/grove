@@ -25,8 +25,7 @@ CREATE INDEX IF NOT EXISTS idx_merge_queue_branch ON merge_queue(branch_name);
 
 fn row_to_entry(row: &rusqlite::Row<'_>) -> rusqlite::Result<MergeEntry> {
     let files_json: String = row.get(4)?;
-    let files_modified: Vec<String> =
-        serde_json::from_str(&files_json).unwrap_or_default();
+    let files_modified: Vec<String> = serde_json::from_str(&files_json).unwrap_or_default();
     Ok(MergeEntry {
         id: row.get(0)?,
         branch_name: row.get(1)?,
@@ -132,7 +131,8 @@ impl MergeQueue {
         };
         let mut stmt = self.conn.prepare(&sql)?;
         let rows = stmt.query_map([], row_to_entry)?;
-        rows.collect::<rusqlite::Result<Vec<_>>>().map_err(GroveError::from)
+        rows.collect::<rusqlite::Result<Vec<_>>>()
+            .map_err(GroveError::from)
     }
 
     pub fn update_status(
@@ -227,7 +227,13 @@ mod tests {
     fn test_update_status() {
         let store = MergeQueue::new(":memory:").unwrap();
         store.enqueue(&make_entry("branch-a")).unwrap();
-        store.update_status("branch-a", MergeEntryStatus::Merged, Some(ResolutionTier::CleanMerge)).unwrap();
+        store
+            .update_status(
+                "branch-a",
+                MergeEntryStatus::Merged,
+                Some(ResolutionTier::CleanMerge),
+            )
+            .unwrap();
 
         let list = store.list(Some(MergeEntryStatus::Merged)).unwrap();
         assert_eq!(list.len(), 1);
@@ -239,7 +245,9 @@ mod tests {
         let store = MergeQueue::new(":memory:").unwrap();
         store.enqueue(&make_entry("a")).unwrap();
         store.enqueue(&make_entry("b")).unwrap();
-        store.update_status("a", MergeEntryStatus::Merged, None).unwrap();
+        store
+            .update_status("a", MergeEntryStatus::Merged, None)
+            .unwrap();
 
         let pending = store.list(Some(MergeEntryStatus::Pending)).unwrap();
         assert_eq!(pending.len(), 1);

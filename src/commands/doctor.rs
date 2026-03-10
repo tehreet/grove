@@ -7,9 +7,7 @@ use serde::Serialize;
 
 use crate::config::load_config;
 use crate::json::json_output;
-use crate::logging::{
-    color_dim, color_green, color_red, color_yellow, render_header, separator,
-};
+use crate::logging::{color_dim, color_green, color_red, color_yellow, render_header, separator};
 
 // ---------------------------------------------------------------------------
 // Types
@@ -121,7 +119,6 @@ fn check_git() -> DoctorCheck {
         }
     }
 }
-
 
 fn check_agent_runtime(runtime_name: &str) -> DoctorCheck {
     let category = Some("dependencies".to_string());
@@ -292,7 +289,13 @@ pub fn execute(json: bool, _verbose: bool, category: Option<String>) -> Result<(
         check_config_yaml(&overstory_dir),
     ];
 
-    for db in &["sessions.db", "mail.db", "events.db", "metrics.db", "merge-queue.db"] {
+    for db in &[
+        "sessions.db",
+        "mail.db",
+        "events.db",
+        "metrics.db",
+        "merge-queue.db",
+    ] {
         checks.push(check_database(&overstory_dir, db));
     }
 
@@ -302,21 +305,37 @@ pub fn execute(json: bool, _verbose: bool, category: Option<String>) -> Result<(
         }
     }
 
-    checks.push(check_agent_manifest(project_root, &config.agents.manifest_path));
+    checks.push(check_agent_manifest(
+        project_root,
+        &config.agents.manifest_path,
+    ));
 
     // Apply category filter
     if let Some(ref cat) = category {
         checks.retain(|c| c.category.as_deref() == Some(cat.as_str()));
     }
 
-    let passed = checks.iter().filter(|c| c.status == CheckStatus::Pass).count();
-    let warnings = checks.iter().filter(|c| c.status == CheckStatus::Warn).count();
-    let failed = checks.iter().filter(|c| c.status == CheckStatus::Fail).count();
+    let passed = checks
+        .iter()
+        .filter(|c| c.status == CheckStatus::Pass)
+        .count();
+    let warnings = checks
+        .iter()
+        .filter(|c| c.status == CheckStatus::Warn)
+        .count();
+    let failed = checks
+        .iter()
+        .filter(|c| c.status == CheckStatus::Fail)
+        .count();
 
     if json {
         let output = DoctorOutput {
             checks,
-            summary: DoctorSummary { passed, warnings, failed },
+            summary: DoctorSummary {
+                passed,
+                warnings,
+                failed,
+            },
         };
         println!("{}", json_output("doctor", &output));
     } else {
@@ -366,7 +385,6 @@ mod tests {
         );
     }
 
-    
     #[test]
     fn check_database_missing() {
         let dir = TempDir::new().unwrap();
@@ -425,7 +443,8 @@ mod tests {
             detail: "2.43.0".to_string(),
             category: Some("dependencies".to_string()),
         };
-        let json: serde_json::Value = serde_json::from_str(&serde_json::to_string(&check).unwrap()).unwrap();
+        let json: serde_json::Value =
+            serde_json::from_str(&serde_json::to_string(&check).unwrap()).unwrap();
         assert_eq!(json["name"], "git");
         assert_eq!(json["status"], "pass");
         assert_eq!(json["detail"], "2.43.0");

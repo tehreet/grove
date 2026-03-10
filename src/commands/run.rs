@@ -113,7 +113,13 @@ pub fn execute_current(json: bool, project_override: Option<&Path>) -> Result<()
         Some(id) => id,
         None => {
             if json {
-                println!("{}", json_output("run", &serde_json::json!({"run": null, "message": "No active run"})));
+                println!(
+                    "{}",
+                    json_output(
+                        "run",
+                        &serde_json::json!({"run": null, "message": "No active run"})
+                    )
+                );
             } else {
                 print_hint("No active run");
             }
@@ -123,7 +129,13 @@ pub fn execute_current(json: bool, project_override: Option<&Path>) -> Result<()
 
     if !PathBuf::from(&sessions_db).exists() {
         if json {
-            println!("{}", json_output("run", &serde_json::json!({"run": null, "message": format!("Run {run_id} not found in store")})));
+            println!(
+                "{}",
+                json_output(
+                    "run",
+                    &serde_json::json!({"run": null, "message": format!("Run {run_id} not found in store")})
+                )
+            );
         } else {
             println!("Run {} not found in store", accent(&run_id));
         }
@@ -135,7 +147,13 @@ pub fn execute_current(json: bool, project_override: Option<&Path>) -> Result<()
         Some(r) => r,
         None => {
             if json {
-                println!("{}", json_output("run", &serde_json::json!({"run": null, "message": format!("Run {run_id} not found in store")})));
+                println!(
+                    "{}",
+                    json_output(
+                        "run",
+                        &serde_json::json!({"run": null, "message": format!("Run {run_id} not found in store")})
+                    )
+                );
             } else {
                 println!("Run {} not found in store", accent(&run_id));
             }
@@ -147,7 +165,13 @@ pub fn execute_current(json: bool, project_override: Option<&Path>) -> Result<()
 
     if json {
         let rwd = RunWithDuration::from_run(&run);
-        println!("{}", json_output("run", &serde_json::json!({"run": rwd, "duration": duration})));
+        println!(
+            "{}",
+            json_output(
+                "run",
+                &serde_json::json!({"run": rwd, "duration": duration})
+            )
+        );
     } else {
         println!("{}", accent("Current Run"));
         println!("{}", muted(SEPARATOR));
@@ -172,7 +196,10 @@ pub fn execute_list(limit: u32, json: bool, project_override: Option<&Path>) -> 
 
     if !PathBuf::from(&sessions_db).exists() {
         if json {
-            println!("{}", json_output("run list", &serde_json::json!({"runs": []})));
+            println!(
+                "{}",
+                json_output("run list", &serde_json::json!({"runs": []}))
+            );
         } else {
             print_hint("No runs recorded yet");
         }
@@ -181,12 +208,19 @@ pub fn execute_list(limit: u32, json: bool, project_override: Option<&Path>) -> 
 
     let run_store = RunStore::new(&sessions_db).map_err(|e| e.to_string())?;
     let runs = run_store
-        .list_runs(Some(crate::types::ListRunsOpts { limit: Some(limit as i64), ..Default::default() }))
+        .list_runs(Some(crate::types::ListRunsOpts {
+            limit: Some(limit as i64),
+            ..Default::default()
+        }))
         .map_err(|e| e.to_string())?;
 
     if json {
-        let with_duration: Vec<RunWithDuration> = runs.iter().map(RunWithDuration::from_run).collect();
-        println!("{}", json_output("run list", &serde_json::json!({"runs": with_duration})));
+        let with_duration: Vec<RunWithDuration> =
+            runs.iter().map(RunWithDuration::from_run).collect();
+        println!(
+            "{}",
+            json_output("run list", &serde_json::json!({"runs": with_duration}))
+        );
         return Ok(());
     }
 
@@ -197,8 +231,7 @@ pub fn execute_list(limit: u32, json: bool, project_override: Option<&Path>) -> 
 
     println!("{}", accent("Recent Runs"));
     println!("{}", muted(SEPARATOR));
-    println!("{:<36} {:<10} {:<7} Duration",
-        "ID", "Status", "Agents");
+    println!("{:<36} {:<10} {:<7} Duration", "ID", "Status", "Agents");
     println!("{}", muted(SEPARATOR));
 
     for run in &runs {
@@ -209,11 +242,13 @@ pub fn execute_list(limit: u32, json: bool, project_override: Option<&Path>) -> 
         };
         let status = format!("{:?}", run.status).to_lowercase();
         let duration = format_duration(run_duration_ms(run));
-        println!("{} {:<10} {:<7} {}",
+        println!(
+            "{} {:<10} {:<7} {}",
             accent(&id_display),
             status,
             run.agent_count,
-            duration);
+            duration
+        );
     }
 
     Ok(())
@@ -223,7 +258,11 @@ pub fn execute_list(limit: u32, json: bool, project_override: Option<&Path>) -> 
 // Execute: show run
 // ---------------------------------------------------------------------------
 
-pub fn execute_show(run_id: &str, json: bool, project_override: Option<&Path>) -> Result<(), String> {
+pub fn execute_show(
+    run_id: &str,
+    json: bool,
+    project_override: Option<&Path>,
+) -> Result<(), String> {
     let cwd = std::env::current_dir().map_err(|e| e.to_string())?;
     let config = load_config(&cwd, project_override).map_err(|e| e.to_string())?;
     let sessions_db = format!("{}/.overstory/sessions.db", config.project.root);
@@ -231,7 +270,10 @@ pub fn execute_show(run_id: &str, json: bool, project_override: Option<&Path>) -
     if !PathBuf::from(&sessions_db).exists() {
         let msg = format!("Run {run_id} not found");
         if json {
-            println!("{}", json_output("run show", &serde_json::json!({"error": msg})));
+            println!(
+                "{}",
+                json_output("run show", &serde_json::json!({"error": msg}))
+            );
         } else {
             print_error(&msg, None);
         }
@@ -246,7 +288,10 @@ pub fn execute_show(run_id: &str, json: bool, project_override: Option<&Path>) -
         None => {
             let msg = format!("Run {run_id} not found");
             if json {
-                println!("{}", json_output("run show", &serde_json::json!({"error": msg})));
+                println!(
+                    "{}",
+                    json_output("run show", &serde_json::json!({"error": msg}))
+                );
             } else {
                 print_error(&msg, None);
             }
@@ -254,12 +299,20 @@ pub fn execute_show(run_id: &str, json: bool, project_override: Option<&Path>) -
         }
     };
 
-    let agents = session_store.get_by_run(run_id).map_err(|e| e.to_string())?;
+    let agents = session_store
+        .get_by_run(run_id)
+        .map_err(|e| e.to_string())?;
     let duration = format_duration(run_duration_ms(&run));
 
     if json {
         let rwd = RunWithDuration::from_run(&run);
-        println!("{}", json_output("run show", &serde_json::json!({"run": rwd, "duration": duration, "agents": agents})));
+        println!(
+            "{}",
+            json_output(
+                "run show",
+                &serde_json::json!({"run": rwd, "duration": duration, "agents": agents})
+            )
+        );
         return Ok(());
     }
 
@@ -293,7 +346,13 @@ pub fn execute_show(run_id: &str, json: bool, project_override: Option<&Path>) -
             };
             let agent_dur = format_duration((agent_end - agent_start).max(0));
             let state = format!("{:?}", agent.state).to_lowercase();
-            println!("  {} [{}] {} | {}", accent(&agent.agent_name), agent.capability, state, agent_dur);
+            println!(
+                "  {} [{}] {} | {}",
+                accent(&agent.agent_name),
+                agent.capability,
+                state,
+                agent_dur
+            );
         }
     }
 
@@ -316,12 +375,19 @@ pub fn execute_complete(json: bool, project_override: Option<&Path>) -> Result<(
             // Also try to get it from RunStore
             if PathBuf::from(&sessions_db).exists() {
                 let run_store = RunStore::new(&sessions_db).map_err(|e| e.to_string())?;
-                match run_store.get_active_run().map_err(|e| e.to_string())?.map(|r| r.id) {
+                match run_store
+                    .get_active_run()
+                    .map_err(|e| e.to_string())?
+                    .map(|r| r.id)
+                {
                     Some(id) => id,
                     None => {
                         let msg = "No active run to complete";
                         if json {
-                            println!("{}", json_output("run complete", &serde_json::json!({"error": msg})));
+                            println!(
+                                "{}",
+                                json_output("run complete", &serde_json::json!({"error": msg}))
+                            );
                         } else {
                             print_error(msg, None);
                         }
@@ -331,7 +397,10 @@ pub fn execute_complete(json: bool, project_override: Option<&Path>) -> Result<(
             } else {
                 let msg = "No active run to complete";
                 if json {
-                    println!("{}", json_output("run complete", &serde_json::json!({"error": msg})));
+                    println!(
+                        "{}",
+                        json_output("run complete", &serde_json::json!({"error": msg}))
+                    );
                 } else {
                     print_error(msg, None);
                 }
@@ -342,7 +411,9 @@ pub fn execute_complete(json: bool, project_override: Option<&Path>) -> Result<(
 
     if PathBuf::from(&sessions_db).exists() {
         let run_store = RunStore::new(&sessions_db).map_err(|e| e.to_string())?;
-        run_store.complete_run(&run_id, RunStatus::Completed).map_err(|e| e.to_string())?;
+        run_store
+            .complete_run(&run_id, RunStatus::Completed)
+            .map_err(|e| e.to_string())?;
     }
 
     // Delete current-run.txt
@@ -350,7 +421,13 @@ pub fn execute_complete(json: bool, project_override: Option<&Path>) -> Result<(
     let _ = std::fs::remove_file(&current_run_file);
 
     if json {
-        println!("{}", json_output("run complete", &serde_json::json!({"runId": run_id, "status": "completed"})));
+        println!(
+            "{}",
+            json_output(
+                "run complete",
+                &serde_json::json!({"runId": run_id, "status": "completed"})
+            )
+        );
     } else {
         print_success("Run completed", Some(&run_id));
     }

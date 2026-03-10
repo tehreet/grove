@@ -82,7 +82,11 @@ fn compute_by_capability(sessions: &[SessionMetrics]) -> Vec<CapabilityBreakdown
         .map(|(cap, (count, total_ms))| CapabilityBreakdown {
             capability: cap,
             count,
-            avg_duration_ms: if count > 0 { total_ms as f64 / count as f64 } else { 0.0 },
+            avg_duration_ms: if count > 0 {
+                total_ms as f64 / count as f64
+            } else {
+                0.0
+            },
         })
         .collect();
     breakdowns.sort_by(|a, b| b.count.cmp(&a.count).then(a.capability.cmp(&b.capability)));
@@ -93,7 +97,11 @@ fn compute_by_capability(sessions: &[SessionMetrics]) -> Vec<CapabilityBreakdown
 // Execute
 // ---------------------------------------------------------------------------
 
-pub fn execute(last: Option<i64>, json: bool, project_override: Option<&Path>) -> Result<(), String> {
+pub fn execute(
+    last: Option<i64>,
+    json: bool,
+    project_override: Option<&Path>,
+) -> Result<(), String> {
     let cwd = std::env::current_dir().map_err(|e| e.to_string())?;
     let config = load_config(&cwd, project_override).map_err(|e| e.to_string())?;
     let root = &config.project.root;
@@ -122,7 +130,10 @@ pub fn execute(last: Option<i64>, json: bool, project_override: Option<&Path>) -
     // Get all sessions for aggregate stats
     let all_sessions = store.get_recent_sessions(None).map_err(|e| e.to_string())?;
     let total = all_sessions.len();
-    let completed = all_sessions.iter().filter(|s| s.completed_at.is_some()).count();
+    let completed = all_sessions
+        .iter()
+        .filter(|s| s.completed_at.is_some())
+        .count();
     let avg_duration_ms = if total > 0 {
         all_sessions.iter().map(|s| s.duration_ms).sum::<i64>() as f64 / total as f64
     } else {
@@ -151,7 +162,10 @@ pub fn execute(last: Option<i64>, json: bool, project_override: Option<&Path>) -
         println!();
         println!("Total sessions: {}", total);
         println!("Completed: {}", completed);
-        println!("Avg duration: {}", format_duration_ms(avg_duration_ms as i64));
+        println!(
+            "Avg duration: {}",
+            format_duration_ms(avg_duration_ms as i64)
+        );
         println!();
         println!("By capability:");
         for cap in &by_capability {
@@ -257,7 +271,10 @@ mod tests {
         ];
 
         let breakdown = compute_by_capability(&sessions);
-        let builder = breakdown.iter().find(|c| c.capability == "builder").unwrap();
+        let builder = breakdown
+            .iter()
+            .find(|c| c.capability == "builder")
+            .unwrap();
         let lead = breakdown.iter().find(|c| c.capability == "lead").unwrap();
 
         assert_eq!(builder.count, 3);

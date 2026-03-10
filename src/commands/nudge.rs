@@ -49,7 +49,13 @@ pub fn execute(
     let result = nudge_agent(&overstory, agent_name, &full_message, from, force);
 
     // Record event (fire-and-forget)
-    record_nudge_event(&overstory, agent_name, from, &full_message, result.delivered);
+    record_nudge_event(
+        &overstory,
+        agent_name,
+        from,
+        &full_message,
+        result.delivered,
+    );
 
     if json {
         #[derive(Serialize)]
@@ -106,9 +112,7 @@ fn nudge_agent(
         None => {
             return NudgeResult {
                 delivered: false,
-                reason: Some(format!(
-                    "No active session for agent \"{agent_name}\""
-                )),
+                reason: Some(format!("No active session for agent \"{agent_name}\"")),
             };
         }
     };
@@ -131,7 +135,13 @@ fn nudge_agent(
     if !force {
         let events_db = format!("{overstory_dir}/events.db");
         if let Ok(store) = EventStore::new(&events_db) {
-            if let Ok(events) = store.get_by_agent(agent_name, Some(crate::types::EventQueryOptions { limit: Some(5), ..Default::default() })) {
+            if let Ok(events) = store.get_by_agent(
+                agent_name,
+                Some(crate::types::EventQueryOptions {
+                    limit: Some(5),
+                    ..Default::default()
+                }),
+            ) {
                 let now = chrono::Utc::now().timestamp_millis() as u128;
                 for ev in &events {
                     if ev.event_type == EventType::Custom {
@@ -208,7 +218,10 @@ fn record_nudge_event(
             tool_args: None,
             tool_duration_ms: None,
             level: EventLevel::Info,
-            data: Some(format!(r#"{{"action":"nudge","from":"{}","delivered":{}}}"#, from, delivered)),
+            data: Some(format!(
+                r#"{{"action":"nudge","from":"{}","delivered":{}}}"#,
+                from, delivered
+            )),
         });
     }
 }

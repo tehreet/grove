@@ -81,7 +81,10 @@ mod tests {
 
     #[test]
     fn test_copilot_instruction_path() {
-        assert_eq!(CopilotRuntime.instruction_path(), ".github/copilot-instructions.md");
+        assert_eq!(
+            CopilotRuntime.instruction_path(),
+            ".github/copilot-instructions.md"
+        );
     }
 
     #[test]

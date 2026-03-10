@@ -88,9 +88,7 @@ fn run_mulch_prime() -> Option<String> {
 // Orchestrator mode
 // ---------------------------------------------------------------------------
 
-fn build_orchestrator_context(
-    project_override: Option<&Path>,
-) -> Result<String, String> {
+fn build_orchestrator_context(project_override: Option<&Path>) -> Result<String, String> {
     let cwd = std::env::current_dir().map_err(|e| e.to_string())?;
     let config = load_config(&cwd, project_override).map_err(|e| e.to_string())?;
 
@@ -103,15 +101,20 @@ fn build_orchestrator_context(
 
     // Project section
     ctx.push_str(&format!("## Project: {}\n", config.project.name));
-    ctx.push_str(&format!("Canonical branch: {}\n", config.project.canonical_branch));
-    ctx.push_str(&format!("Max concurrent agents: {}\n", config.agents.max_concurrent));
+    ctx.push_str(&format!(
+        "Canonical branch: {}\n",
+        config.project.canonical_branch
+    ));
+    ctx.push_str(&format!(
+        "Max concurrent agents: {}\n",
+        config.agents.max_concurrent
+    ));
     ctx.push_str(&format!("Max depth: {}\n", config.agents.max_depth));
     ctx.push('\n');
 
     // Agent manifest
     ctx.push_str("## Agent Manifest\n");
-    let manifest_path = std::path::PathBuf::from(&root)
-        .join(&config.agents.manifest_path);
+    let manifest_path = std::path::PathBuf::from(&root).join(&config.agents.manifest_path);
     if manifest_path.exists() {
         if let Ok(content) = std::fs::read_to_string(&manifest_path) {
             if let Ok(entries) = serde_json::from_str::<Vec<serde_json::Value>>(&content) {
@@ -202,16 +205,11 @@ fn build_agent_context(
         if let Ok(store) = SessionStore::new(&sessions_db) {
             if let Ok(Some(session)) = store.get_by_name(agent_name) {
                 use crate::types::AgentState;
-                let is_active = !matches!(
-                    session.state,
-                    AgentState::Completed | AgentState::Zombie
-                );
+                let is_active =
+                    !matches!(session.state, AgentState::Completed | AgentState::Zombie);
                 if is_active && !session.task_id.is_empty() {
                     ctx.push_str("## Activation\n");
-                    ctx.push_str(&format!(
-                        "You have a bound task: **{}**\n",
-                        session.task_id
-                    ));
+                    ctx.push_str(&format!("You have a bound task: **{}**\n", session.task_id));
                     ctx.push_str(
                         "Read your overlay at `.claude/CLAUDE.md` and begin working immediately.\n",
                     );

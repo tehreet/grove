@@ -150,7 +150,10 @@ mod tests {
         let mut opts = make_opts();
         opts.model = "sonnet".to_string();
         let cmd = CodexRuntime.build_headless_command(&opts);
-        assert!(!cmd.contains(&"--model".to_string()), "Should omit --model for manifest alias");
+        assert!(
+            !cmd.contains(&"--model".to_string()),
+            "Should omit --model for manifest alias"
+        );
     }
 
     #[test]
@@ -158,7 +161,10 @@ mod tests {
         let mut opts = make_opts();
         opts.model = "claude-sonnet-4-6".to_string();
         let cmd = CodexRuntime.build_headless_command(&opts);
-        assert!(!cmd.contains(&"--model".to_string()), "Should omit --model for claude model");
+        assert!(
+            !cmd.contains(&"--model".to_string()),
+            "Should omit --model for claude model"
+        );
     }
 
     #[test]

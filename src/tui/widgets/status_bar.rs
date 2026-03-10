@@ -146,72 +146,140 @@ pub fn render(f: &mut Frame, app: &App, area: Rect) {
     let hint_spans: Vec<Span> = match app.current_view {
         View::Overview => {
             vec![
-                key("q"), label("quit"), sep.clone(),
-                key("?"), label("help"), sep.clone(),
-                key("tab"), label("focus"), sep.clone(),
-                key("↵"), label("detail"), sep.clone(),
-                key("t"), label("terminal"), sep.clone(),
-                key("/"), label("filter"), sep.clone(),
-                key("r"), label("refresh"), sep.clone(),
-                key("a"), label("all agents"), sep.clone(),
-                key("2"), label("event log"), sep.clone(),
-                key("4/$"), label("costs"), sep.clone(),
-                key("5"), label("timeline"),
+                key("q"),
+                label("quit"),
+                sep.clone(),
+                key("?"),
+                label("help"),
+                sep.clone(),
+                key("tab"),
+                label("focus"),
+                sep.clone(),
+                key("↵"),
+                label("detail"),
+                sep.clone(),
+                key("t"),
+                label("terminal"),
+                sep.clone(),
+                key("/"),
+                label("filter"),
+                sep.clone(),
+                key("r"),
+                label("refresh"),
+                sep.clone(),
+                key("a"),
+                label("all agents"),
+                sep.clone(),
+                key("2"),
+                label("event log"),
+                sep.clone(),
+                key("4/$"),
+                label("costs"),
+                sep.clone(),
+                key("5"),
+                label("timeline"),
             ]
         }
         View::AgentDetail => {
             vec![
-                key("esc"), label("back"), sep.clone(),
-                key("↑↓"), label("scroll"), sep.clone(),
-                key("q"), label("quit"),
+                key("esc"),
+                label("back"),
+                sep.clone(),
+                key("↑↓"),
+                label("scroll"),
+                sep.clone(),
+                key("q"),
+                label("quit"),
             ]
         }
         View::EventLog => {
             vec![
-                key("esc"), label("back"), sep.clone(),
-                key("↑↓/jk"), label("scroll"), sep.clone(),
-                key("g/G"), label("top/bottom"), sep.clone(),
-                key("q"), label("quit"),
+                key("esc"),
+                label("back"),
+                sep.clone(),
+                key("↑↓/jk"),
+                label("scroll"),
+                sep.clone(),
+                key("g/G"),
+                label("top/bottom"),
+                sep.clone(),
+                key("q"),
+                label("quit"),
             ]
         }
         View::Terminal => {
             vec![
-                key("esc"), label("back"), sep.clone(),
-                key("↑↓/jk"), label("scroll"), sep.clone(),
-                key("g/G"), label("top/bottom"), sep.clone(),
-                key("f"), label("fullscreen"), sep.clone(),
-                key("s"), label("split view"), sep.clone(),
-                key("q"), label("quit"),
+                key("esc"),
+                label("back"),
+                sep.clone(),
+                key("↑↓/jk"),
+                label("scroll"),
+                sep.clone(),
+                key("g/G"),
+                label("top/bottom"),
+                sep.clone(),
+                key("f"),
+                label("fullscreen"),
+                sep.clone(),
+                key("s"),
+                label("split view"),
+                sep.clone(),
+                key("q"),
+                label("quit"),
             ]
         }
         View::SplitTerminal => {
             vec![
-                key("esc"), label("back"), sep.clone(),
-                key("tab"), label("next panel"), sep.clone(),
-                key("↵"), label("open full"), sep.clone(),
-                key("1-4"), label("focus panel"), sep.clone(),
-                key("q"), label("quit"),
+                key("esc"),
+                label("back"),
+                sep.clone(),
+                key("tab"),
+                label("next panel"),
+                sep.clone(),
+                key("↵"),
+                label("open full"),
+                sep.clone(),
+                key("1-4"),
+                label("focus panel"),
+                sep.clone(),
+                key("q"),
+                label("quit"),
             ]
         }
         View::MailReader => {
             vec![
-                key("esc"), label("back"), sep.clone(),
-                key("r"), label("reply"), sep.clone(),
-                key("↑↓/jk"), label("scroll"),
+                key("esc"),
+                label("back"),
+                sep.clone(),
+                key("r"),
+                label("reply"),
+                sep.clone(),
+                key("↑↓/jk"),
+                label("scroll"),
             ]
         }
         View::CostAnalytics => {
             vec![
-                key("esc"), label("back"), sep.clone(),
-                key("↑↓/jk"), label("scroll"), sep.clone(),
-                key("q"), label("quit"),
+                key("esc"),
+                label("back"),
+                sep.clone(),
+                key("↑↓/jk"),
+                label("scroll"),
+                sep.clone(),
+                key("q"),
+                label("quit"),
             ]
         }
         View::Timeline => {
             vec![
-                key("esc"), label("back"), sep.clone(),
-                key("↑↓/jk"), label("scroll"), sep.clone(),
-                key("q"), label("quit"),
+                key("esc"),
+                label("back"),
+                sep.clone(),
+                key("↑↓/jk"),
+                label("scroll"),
+                sep.clone(),
+                key("q"),
+                label("quit"),
             ]
         }
     };
@@ -236,14 +304,12 @@ fn build_right_spans() -> Vec<Span<'static>> {
 
     // Flash notification takes priority
     if let Some(notif) = active_notification() {
-        return vec![
-            Span::styled(
-                format!("  ✦ {}", notif),
-                Style::default()
-                    .fg(ACCENT_ORANGE)
-                    .add_modifier(Modifier::BOLD),
-            ),
-        ];
+        return vec![Span::styled(
+            format!("  ✦ {}", notif),
+            Style::default()
+                .fg(ACCENT_ORANGE)
+                .add_modifier(Modifier::BOLD),
+        )];
     }
 
     let (load_avg, disk_usage) = get_sys_stats();
@@ -251,10 +317,7 @@ fn build_right_spans() -> Vec<Span<'static>> {
 
     if !load_avg.is_empty() {
         spans.push(Span::styled("load ", Style::default().fg(MUTED_GRAY)));
-        spans.push(Span::styled(
-            load_avg,
-            Style::default().fg(ACCENT_GREEN),
-        ));
+        spans.push(Span::styled(load_avg, Style::default().fg(ACCENT_GREEN)));
     }
 
     if !disk_usage.is_empty() {
@@ -262,10 +325,7 @@ fn build_right_spans() -> Vec<Span<'static>> {
             spans.push(sep.clone());
         }
         spans.push(Span::styled("disk ", Style::default().fg(MUTED_GRAY)));
-        spans.push(Span::styled(
-            disk_usage,
-            Style::default().fg(ACCENT_GREEN),
-        ));
+        spans.push(Span::styled(disk_usage, Style::default().fg(ACCENT_GREEN)));
     }
 
     spans

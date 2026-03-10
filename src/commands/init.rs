@@ -332,9 +332,21 @@ struct SiblingTool {
 }
 
 const SIBLING_TOOLS: &[SiblingTool] = &[
-    SiblingTool { name: "mulch", cli: "ml", dot_dir: ".mulch" },
-    SiblingTool { name: "seeds", cli: "sd", dot_dir: ".seeds" },
-    SiblingTool { name: "canopy", cli: "cn", dot_dir: ".canopy" },
+    SiblingTool {
+        name: "mulch",
+        cli: "ml",
+        dot_dir: ".mulch",
+    },
+    SiblingTool {
+        name: "seeds",
+        cli: "sd",
+        dot_dir: ".seeds",
+    },
+    SiblingTool {
+        name: "canopy",
+        cli: "cn",
+        dot_dir: ".canopy",
+    },
 ];
 
 fn is_tool_installed(cli: &str) -> bool {
@@ -384,6 +396,23 @@ fn onboard_sibling_tool(tool: &SiblingTool, project_root: &Path) {
         .arg("onboard")
         .current_dir(project_root)
         .status();
+}
+
+fn bootstrap_ecosystem_tools<'a>(
+    tool_set: &'a [&'a SiblingTool],
+    project_root: &Path,
+) -> Vec<(&'a str, &'static str)> {
+    if !tool_set.is_empty() {
+        println!("\nBootstrapping ecosystem tools...\n");
+    }
+
+    let mut tool_statuses = Vec::with_capacity(tool_set.len());
+    for tool in tool_set {
+        let status = init_sibling_tool(tool, project_root);
+        tool_statuses.push((tool.name, status));
+    }
+
+    tool_statuses
 }
 
 fn setup_gitattributes(project_root: &Path) -> bool {
@@ -451,9 +480,7 @@ pub fn execute(opts: InitOptions<'_>) -> Result<(), String> {
         .output()
         .map_err(|e| e.to_string())?;
     if !git_check.status.success() {
-        return Err(
-            "overstory requires a git repository. Run 'git init' first.".to_string(),
-        );
+        return Err("overstory requires a git repository. Run 'git init' first.".to_string());
     }
 
     let ov_path = project_root.join(OVERSTORY_DIR);
@@ -502,8 +529,8 @@ pub fn execute(opts: InitOptions<'_>) -> Result<(), String> {
     config.project.root = project_root.to_string_lossy().into_owned();
     config.project.canonical_branch = canonical_branch;
 
-    let config_yaml = serde_yaml::to_string(&config)
-        .map_err(|e| format!("Failed to serialize config: {e}"))?;
+    let config_yaml =
+        serde_yaml::to_string(&config).map_err(|e| format!("Failed to serialize config: {e}"))?;
     let config_with_header = format!(
         "# Overstory configuration\n# See: https://github.com/overstory/overstory\n\n{config_yaml}"
     );
@@ -516,9 +543,15 @@ pub fn execute(opts: InitOptions<'_>) -> Result<(), String> {
     let manifest_json = serde_json::to_string_pretty(&manifest)
         .map_err(|e| format!("Failed to serialize manifest: {e}"))?;
     let manifest_path = ov_path.join("agent-manifest.json");
-    fs::write(&manifest_path, format!("{}\n", to_tab_indented(&manifest_json)))
-        .map_err(|e| format!("Failed to write agent-manifest.json: {e}"))?;
-    print_success("Created", Some(&format!("{OVERSTORY_DIR}/agent-manifest.json")));
+    fs::write(
+        &manifest_path,
+        format!("{}\n", to_tab_indented(&manifest_json)),
+    )
+    .map_err(|e| format!("Failed to write agent-manifest.json: {e}"))?;
+    print_success(
+        "Created",
+        Some(&format!("{OVERSTORY_DIR}/agent-manifest.json")),
+    );
 
     // 6. Write hooks.json
     let hooks_content = build_hooks_json();
@@ -541,8 +574,7 @@ pub fn execute(opts: InitOptions<'_>) -> Result<(), String> {
 
     // 7c. Write templates/overlay.md.tmpl so `grove sling` works in this project
     let templates_dir = project_root.join("templates");
-    fs::create_dir_all(&templates_dir)
-        .map_err(|e| format!("Failed to create templates/: {e}"))?;
+    fs::create_dir_all(&templates_dir).map_err(|e| format!("Failed to create templates/: {e}"))?;
     let template_path = templates_dir.join("overlay.md.tmpl");
     if !template_path.exists() {
         fs::write(&template_path, OVERLAY_TEMPLATE)
@@ -564,15 +596,7 @@ pub fn execute(opts: InitOptions<'_>) -> Result<(), String> {
         })
         .collect();
 
-    if !tool_set.is_empty() {
-        println!("\nBootstrapping ecosystem tools...\n");
-    }
-
-    let mut tool_statuses: Vec<(&str, &str)> = vec![];
-    for tool in &tool_set {
-        let status = init_sibling_tool(tool, &project_root);
-        tool_statuses.push((tool.name, status));
-    }
+    let tool_statuses = bootstrap_ecosystem_tools(&tool_set, &project_root);
 
     // 9. Set up .gitattributes
     let gitattrs_updated = setup_gitattributes(&project_root);
@@ -668,7 +692,13 @@ mod tests {
     fn test_build_agent_manifest_has_all_roles() {
         let manifest = build_agent_manifest();
         let expected_roles = [
-            "scout", "builder", "reviewer", "lead", "merger", "coordinator", "monitor",
+            "scout",
+            "builder",
+            "reviewer",
+            "lead",
+            "merger",
+            "coordinator",
+            "monitor",
             "verifier",
         ];
         for role in &expected_roles {

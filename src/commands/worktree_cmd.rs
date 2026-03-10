@@ -54,7 +54,11 @@ fn list_git_worktrees_raw(project_root: &str) -> Vec<(String, String, String)> {
     for line in text.lines() {
         if line.is_empty() {
             if let (Some(p), Some(h)) = (path.take(), head.take()) {
-                result.push((p, h, branch.take().unwrap_or_else(|| "(detached)".to_string())));
+                result.push((
+                    p,
+                    h,
+                    branch.take().unwrap_or_else(|| "(detached)".to_string()),
+                ));
             }
             branch = None;
         } else if let Some(p) = line.strip_prefix("worktree ") {
@@ -85,7 +89,6 @@ fn is_branch_merged(project_root: &str, branch: &str, canonical: &str) -> bool {
     matches!(output, Ok(o) if o.status.success())
 }
 
-
 fn remove_git_worktree(project_root: &str, path: &str) -> Result<(), String> {
     let output = Command::new("git")
         .args(["worktree", "remove", "--force", path])
@@ -112,7 +115,6 @@ fn delete_branch(project_root: &str, branch: &str) -> Result<(), String> {
     Ok(())
 }
 
-
 // ---------------------------------------------------------------------------
 // Execute: list
 // ---------------------------------------------------------------------------
@@ -125,7 +127,10 @@ pub fn execute_list(json: bool, project_override: Option<&Path>) -> Result<(), S
     let sessions_db = format!("{overstory}/sessions.db");
 
     let worktrees = list_git_worktrees_raw(root);
-    let overstory_wts: Vec<_> = worktrees.iter().filter(|(_, _, b)| b.starts_with("overstory/")).collect();
+    let overstory_wts: Vec<_> = worktrees
+        .iter()
+        .filter(|(_, _, b)| b.starts_with("overstory/"))
+        .collect();
 
     let sessions: Vec<crate::types::AgentSession> = if PathBuf::from(&sessions_db).exists() {
         SessionStore::new(&sessions_db)
@@ -151,7 +156,10 @@ pub fn execute_list(json: bool, project_override: Option<&Path>) -> Result<(), S
                 }
             })
             .collect();
-        println!("{}", json_output("worktree list", &serde_json::json!({"worktrees": entries})));
+        println!(
+            "{}",
+            json_output("worktree list", &serde_json::json!({"worktrees": entries}))
+        );
         return Ok(());
     }
 
@@ -163,7 +171,9 @@ pub fn execute_list(json: bool, project_override: Option<&Path>) -> Result<(), S
     println!("Agent worktrees: {}\n", overstory_wts.len());
     for (path, _, branch) in &overstory_wts {
         let session = sessions.iter().find(|s| &s.worktree_path == path);
-        let state = session.map(|s| format!("{:?}", s.state).to_lowercase()).unwrap_or_else(|| "unknown".to_string());
+        let state = session
+            .map(|s| format!("{:?}", s.state).to_lowercase())
+            .unwrap_or_else(|| "unknown".to_string());
         let agent = session.map(|s| s.agent_name.as_str()).unwrap_or("?");
         let task = session.map(|s| s.task_id.as_str()).unwrap_or("?");
         println!("  {}", accent(branch));
@@ -305,19 +315,31 @@ pub fn execute_clean(
     } else {
         if !cleaned.is_empty() {
             print_success(
-                &format!("Cleaned {} worktree{}", cleaned.len(), if cleaned.len() == 1 { "" } else { "s" }),
+                &format!(
+                    "Cleaned {} worktree{}",
+                    cleaned.len(),
+                    if cleaned.len() == 1 { "" } else { "s" }
+                ),
                 None,
             );
         }
         if !failed.is_empty() {
             print_warning(
-                &format!("Failed to clean {} worktree{}", failed.len(), if failed.len() == 1 { "" } else { "s" }),
+                &format!(
+                    "Failed to clean {} worktree{}",
+                    failed.len(),
+                    if failed.len() == 1 { "" } else { "s" }
+                ),
                 None,
             );
         }
         if !skipped.is_empty() {
             print_warning(
-                &format!("Skipped {} worktree{} with unmerged branches", skipped.len(), if skipped.len() == 1 { "" } else { "s" }),
+                &format!(
+                    "Skipped {} worktree{} with unmerged branches",
+                    skipped.len(),
+                    if skipped.len() == 1 { "" } else { "s" }
+                ),
                 Some("Use --force to delete unmerged branches"),
             );
             for branch in &skipped {
@@ -351,7 +373,13 @@ mod tests {
 
     #[test]
     fn test_execute_clean_no_db() {
-        let result = execute_clean(false, false, true, false, Some(Path::new("/tmp/grove-test")));
+        let result = execute_clean(
+            false,
+            false,
+            true,
+            false,
+            Some(Path::new("/tmp/grove-test")),
+        );
         assert!(result.is_ok());
     }
 }

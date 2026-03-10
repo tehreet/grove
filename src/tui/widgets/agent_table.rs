@@ -9,11 +9,11 @@ use ratatui::{
 };
 
 use crate::tui::app::App;
+use crate::tui::app::Focus;
 use crate::tui::theme::{
     agent_state_color, agent_state_icon, focused_block, unfocused_block, ACCENT_CYAN, MUTED_GRAY,
     TEXT_PRIMARY,
 };
-use crate::tui::app::Focus;
 use ratatui::layout::Constraint;
 
 pub fn render(f: &mut Frame, app: &mut App, area: Rect) {
@@ -38,11 +38,7 @@ pub fn render(f: &mut Frame, app: &mut App, area: Rect) {
     let header_cells = ["St", "Name", "Capability", "State", "Task", "Duration", "$"]
         .iter()
         .map(|h| {
-            Cell::from(*h).style(
-                Style::default()
-                    .fg(MUTED_GRAY)
-                    .add_modifier(Modifier::BOLD),
-            )
+            Cell::from(*h).style(Style::default().fg(MUTED_GRAY).add_modifier(Modifier::BOLD))
         });
     let header_row = Row::new(header_cells).height(1);
 
@@ -67,8 +63,7 @@ pub fn render(f: &mut Frame, app: &mut App, area: Rect) {
                 Cell::from(truncate(&session.capability, 10))
                     .style(Style::default().fg(ACCENT_CYAN)),
                 Cell::from(state_str).style(Style::default().fg(state_color)),
-                Cell::from(truncate(&session.task_id, 16))
-                    .style(Style::default().fg(MUTED_GRAY)),
+                Cell::from(truncate(&session.task_id, 16)).style(Style::default().fg(MUTED_GRAY)),
                 Cell::from(duration).style(Style::default().fg(MUTED_GRAY)),
                 Cell::from(cost).style(Style::default().fg(MUTED_GRAY)),
             ])
@@ -92,7 +87,9 @@ pub fn render(f: &mut Frame, app: &mut App, area: Rect) {
             .fg(TEXT_PRIMARY)
             .add_modifier(Modifier::BOLD)
     } else {
-        Style::default().bg(ratatui::style::Color::Rgb(68, 71, 90)).fg(TEXT_PRIMARY)
+        Style::default()
+            .bg(ratatui::style::Color::Rgb(68, 71, 90))
+            .fg(TEXT_PRIMARY)
     };
 
     let table = Table::new(rows, widths)
@@ -113,8 +110,7 @@ fn truncate(s: &str, max: usize) -> String {
 
 fn compute_duration(session: &crate::types::AgentSession) -> String {
     use crate::types::AgentState;
-    let start = DateTime::parse_from_rfc3339(&session.started_at)
-        .map(|dt| dt.with_timezone(&Utc));
+    let start = DateTime::parse_from_rfc3339(&session.started_at).map(|dt| dt.with_timezone(&Utc));
     let end = match session.state {
         AgentState::Completed | AgentState::Zombie => {
             DateTime::parse_from_rfc3339(&session.last_activity)

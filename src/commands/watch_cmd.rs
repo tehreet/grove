@@ -123,7 +123,10 @@ fn run_once(
                     )
                 );
             } else {
-                println!("{} no sessions.db found — nothing to check", brand_bold("watch"));
+                println!(
+                    "{} no sessions.db found — nothing to check",
+                    brand_bold("watch")
+                );
             }
             return Ok(());
         }
@@ -274,7 +277,10 @@ fn start_background(
             )
         );
     } else {
-        println!("{} Watchdog started in background, PID: {pid}", brand_bold("grove"));
+        println!(
+            "{} Watchdog started in background, PID: {pid}",
+            brand_bold("grove")
+        );
         println!("  Log:  {}", log_path.display());
         println!("  PID file: {}", pid_file_path(root).display());
     }
@@ -347,7 +353,10 @@ pub fn execute_stop(json: bool, project_override: Option<&Path>) -> Result<(), S
             stopped: bool,
             pid: u32,
         }
-        println!("{}", json_output("watch stop", &Output { stopped: true, pid }));
+        println!(
+            "{}",
+            json_output("watch stop", &Output { stopped: true, pid })
+        );
     } else {
         println!("{} Watchdog stopped (PID: {pid})", brand_bold("grove"));
     }

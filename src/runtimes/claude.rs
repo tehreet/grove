@@ -41,7 +41,12 @@ impl AgentRuntime for ClaudeRuntime {
         )
     }
 
-    fn deploy_config(&self, worktree: &Path, overlay_content: &str, hooks: &HooksDef) -> Result<(), String> {
+    fn deploy_config(
+        &self,
+        worktree: &Path,
+        overlay_content: &str,
+        hooks: &HooksDef,
+    ) -> Result<(), String> {
         let claude_dir = worktree.join(".claude");
         fs::create_dir_all(&claude_dir)
             .map_err(|e| format!("Failed to create .claude dir: {e}"))?;
@@ -169,7 +174,9 @@ mod tests {
             worktree_path: dir.path().to_string_lossy().to_string(),
             quality_gates: None,
         };
-        ClaudeRuntime.deploy_config(dir.path(), "# overlay content", &hooks).unwrap();
+        ClaudeRuntime
+            .deploy_config(dir.path(), "# overlay content", &hooks)
+            .unwrap();
 
         let claude_md = dir.path().join(".claude/CLAUDE.md");
         assert!(claude_md.exists());
@@ -197,7 +204,10 @@ mod tests {
         ClaudeRuntime.deploy_config(dir.path(), "", &hooks).unwrap();
 
         let content = std::fs::read_to_string(claude_dir.join("CLAUDE.md")).unwrap();
-        assert_eq!(content, "# existing content", "Empty overlay should not overwrite existing CLAUDE.md");
+        assert_eq!(
+            content, "# existing content",
+            "Empty overlay should not overwrite existing CLAUDE.md"
+        );
     }
 
     #[test]

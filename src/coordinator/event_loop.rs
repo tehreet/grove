@@ -98,7 +98,10 @@ fn handle_message(
             false
         }
         _ => {
-            eprintln!("[coordinator] message type '{}' — no handler", msg.message_type);
+            eprintln!(
+                "[coordinator] message type '{}' — no handler",
+                msg.message_type
+            );
             false
         }
     }
@@ -139,7 +142,10 @@ fn handle_merge_entry(entry: &crate::types::MergeEntry, ctx: &LoopContext) {
         }
         Ok(out) => {
             let stderr = String::from_utf8_lossy(&out.stderr);
-            eprintln!("[coordinator] merge failed: {}: {stderr}", entry.branch_name);
+            eprintln!(
+                "[coordinator] merge failed: {}: {stderr}",
+                entry.branch_name
+            );
         }
         Err(e) => {
             eprintln!("[coordinator] merge error: {e}");
@@ -152,12 +158,7 @@ fn handle_merge_entry(entry: &crate::types::MergeEntry, ctx: &LoopContext) {
 // ---------------------------------------------------------------------------
 
 /// Spawn a headless agent via `grove sling --headless` in the given project root.
-fn spawn_agent_headless(
-    task_id: &str,
-    capability: &str,
-    parent_agent: &str,
-    project_root: &str,
-) {
+fn spawn_agent_headless(task_id: &str, capability: &str, parent_agent: &str, project_root: &str) {
     eprintln!("[coordinator] sling --headless: task={task_id} capability={capability}");
     let output = Command::new("grove")
         .args([
@@ -317,7 +318,10 @@ mod tests {
         // BUG-1 regression: all_agents_done=true but no work received → must not exit
         let ctx = test_ctx(":memory:");
         assert!(!ctx.has_received_work);
-        assert!(!should_exit(&ctx), "should not exit before any work is received");
+        assert!(
+            !should_exit(&ctx),
+            "should not exit before any work is received"
+        );
     }
 
     #[test]
@@ -326,7 +330,10 @@ mod tests {
         let mut ctx = test_ctx(":memory:");
         ctx.has_received_work = true;
         // :memory: DB has no sessions → others_active is empty → should exit
-        assert!(should_exit(&ctx), "should exit when work received and no active agents");
+        assert!(
+            should_exit(&ctx),
+            "should exit when work received and no active agents"
+        );
     }
 
     #[test]

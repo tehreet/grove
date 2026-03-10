@@ -6,6 +6,7 @@ pub mod costs;
 pub mod doctor;
 pub mod ecosystem;
 pub mod errors;
+pub mod eval;
 pub mod feed;
 pub mod group;
 pub mod hooks;

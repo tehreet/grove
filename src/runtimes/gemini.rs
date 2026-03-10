@@ -118,7 +118,10 @@ mod tests {
 
         let gemini_md = dir.path().join("GEMINI.md");
         assert!(gemini_md.exists());
-        assert_eq!(std::fs::read_to_string(gemini_md).unwrap(), "# Gemini overlay");
+        assert_eq!(
+            std::fs::read_to_string(gemini_md).unwrap(),
+            "# Gemini overlay"
+        );
         assert!(!dir.path().join(".claude").exists());
     }
 }

@@ -60,7 +60,12 @@ pub trait AgentRuntime: Send + Sync {
     fn build_interactive_command(&self, opts: &SpawnOpts) -> String;
 
     /// Deploy overlay + hooks config to worktree
-    fn deploy_config(&self, worktree: &Path, overlay_content: &str, hooks: &HooksDef) -> Result<(), String>;
+    fn deploy_config(
+        &self,
+        worktree: &Path,
+        overlay_content: &str,
+        hooks: &HooksDef,
+    ) -> Result<(), String>;
 
     /// Detect readiness from output content
     fn detect_ready(&self, pane_content: &str) -> ReadyState;

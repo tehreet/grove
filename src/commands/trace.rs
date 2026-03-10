@@ -48,11 +48,7 @@ struct TraceOutput {
 // Execute
 // ---------------------------------------------------------------------------
 
-pub fn execute(
-    subject: &str,
-    json: bool,
-    project_override: Option<&Path>,
-) -> Result<(), String> {
+pub fn execute(subject: &str, json: bool, project_override: Option<&Path>) -> Result<(), String> {
     let cwd = std::env::current_dir().map_err(|e| e.to_string())?;
     let config = load_config(&cwd, project_override).map_err(|e| e.to_string())?;
     let root = &config.project.root;
@@ -65,7 +61,9 @@ pub fn execute(
     // For agent-name subjects, query by agent. For task IDs, also include data search.
     let is_task_id = subject.starts_with("grove-")
         || subject.chars().any(|c| c.is_ascii_digit())
-            && !subject.chars().all(|c| c.is_ascii_alphanumeric() || c == '-');
+            && !subject
+                .chars()
+                .all(|c| c.is_ascii_alphanumeric() || c == '-');
 
     // Collect events
     let mut items: Vec<TimelineItem> = Vec::new();
@@ -88,7 +86,10 @@ pub fn execute(
                 .map_err(|e| e.to_string())?;
             for ev in task_events {
                 // Deduplicate by ID
-                if !items.iter().any(|i| matches!(i, TimelineItem::Event(e) if e.id == ev.id)) {
+                if !items
+                    .iter()
+                    .any(|i| matches!(i, TimelineItem::Event(e) if e.id == ev.id))
+                {
                     items.push(TimelineItem::Event(ev));
                 }
             }
@@ -121,7 +122,10 @@ pub fn execute(
             .map_err(|e| e.to_string())?;
         for m in received {
             // Deduplicate by ID
-            if !items.iter().any(|i| matches!(i, TimelineItem::Mail(msg) if msg.id == m.id)) {
+            if !items
+                .iter()
+                .any(|i| matches!(i, TimelineItem::Mail(msg) if msg.id == m.id))
+            {
                 items.push(TimelineItem::Mail(m));
             }
         }
@@ -132,7 +136,11 @@ pub fn execute(
 
     if json {
         let count = items.len();
-        let out = TraceOutput { subject: subject.to_string(), items, count };
+        let out = TraceOutput {
+            subject: subject.to_string(),
+            items,
+            count,
+        };
         println!("{}", json_output("trace", &out));
     } else {
         print_trace(subject, &items);
@@ -158,7 +166,11 @@ fn print_trace(subject: &str, items: &[TimelineItem]) {
         match item {
             TimelineItem::Event(ev) => {
                 let ts = &ev.created_at;
-                let short_ts = if ts.len() >= 19 { &ts[..19] } else { ts.as_str() };
+                let short_ts = if ts.len() >= 19 {
+                    &ts[..19]
+                } else {
+                    ts.as_str()
+                };
                 let level_icon = match ev.level {
                     EventLevel::Error => "✗".red().to_string(),
                     EventLevel::Warn => "!".yellow().to_string(),
@@ -185,7 +197,11 @@ fn print_trace(subject: &str, items: &[TimelineItem]) {
             }
             TimelineItem::Mail(msg) => {
                 let ts = &msg.created_at;
-                let short_ts = if ts.len() >= 19 { &ts[..19] } else { ts.as_str() };
+                let short_ts = if ts.len() >= 19 {
+                    &ts[..19]
+                } else {
+                    ts.as_str()
+                };
                 println!(
                     "  {} {} {} → {} | {}",
                     muted(short_ts),

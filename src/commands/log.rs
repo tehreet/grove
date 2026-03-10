@@ -40,9 +40,7 @@ pub fn execute_session_start(
     let store = SessionStore::new(&sessions_db).map_err(|e| e.to_string())?;
 
     // Check session exists
-    let session = store
-        .get_by_name(agent_name)
-        .map_err(|e| e.to_string())?;
+    let session = store.get_by_name(agent_name).map_err(|e| e.to_string())?;
 
     if session.is_none() {
         // Session not found — this can happen if grove status DB doesn't have it yet.
@@ -101,9 +99,7 @@ pub fn execute_session_end(
     let store = SessionStore::new(&sessions_db).map_err(|e| e.to_string())?;
 
     // Check session exists
-    let session = store
-        .get_by_name(agent_name)
-        .map_err(|e| e.to_string())?;
+    let session = store.get_by_name(agent_name).map_err(|e| e.to_string())?;
 
     if session.is_none() {
         if !json {

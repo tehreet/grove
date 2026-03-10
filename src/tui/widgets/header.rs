@@ -52,10 +52,8 @@ fn get_git_info() -> (String, String) {
     let store = git_info_store();
     if let Ok(mut info) = store.lock() {
         if info.refreshed.elapsed().as_secs() >= 30 {
-            info.branch = run_git(&["rev-parse", "--abbrev-ref", "HEAD"])
-                .unwrap_or_default();
-            info.commit = run_git(&["log", "-1", "--pretty=%h"])
-                .unwrap_or_default();
+            info.branch = run_git(&["rev-parse", "--abbrev-ref", "HEAD"]).unwrap_or_default();
+            info.commit = run_git(&["log", "-1", "--pretty=%h"]).unwrap_or_default();
             info.refreshed = Instant::now();
         }
         (info.branch.clone(), info.commit.clone())
@@ -137,16 +135,15 @@ pub fn render(f: &mut Frame, app: &App, area: Rect) {
     }
 
     spans.push(separator.clone());
-    spans.push(Span::styled(
-        time_str,
-        Style::default().fg(MUTED_GRAY),
-    ));
+    spans.push(Span::styled(time_str, Style::default().fg(MUTED_GRAY)));
 
     if app.filter_mode {
         spans.push(separator.clone());
         spans.push(Span::styled(
             format!("filter: {}_", app.filter_text),
-            Style::default().fg(ACCENT_ORANGE).add_modifier(Modifier::BOLD),
+            Style::default()
+                .fg(ACCENT_ORANGE)
+                .add_modifier(Modifier::BOLD),
         ));
     } else if !app.filter_text.is_empty() {
         spans.push(separator.clone());
@@ -156,8 +153,7 @@ pub fn render(f: &mut Frame, app: &App, area: Rect) {
         ));
     }
 
-    let header = Paragraph::new(Line::from(spans))
-        .style(Style::default().bg(HEADER_BG));
+    let header = Paragraph::new(Line::from(spans)).style(Style::default().bg(HEADER_BG));
 
     f.render_widget(header, area);
 }

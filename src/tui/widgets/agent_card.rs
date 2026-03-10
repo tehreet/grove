@@ -35,11 +35,15 @@ pub fn render_card(
     let title_spans = vec![
         Span::styled(
             format!(" {} ", agent_state_icon(&session.state)),
-            Style::default().fg(state_color).add_modifier(Modifier::BOLD),
+            Style::default()
+                .fg(state_color)
+                .add_modifier(Modifier::BOLD),
         ),
         Span::styled(
             session.agent_name.clone(),
-            Style::default().fg(BRAND_PRIMARY).add_modifier(Modifier::BOLD),
+            Style::default()
+                .fg(BRAND_PRIMARY)
+                .add_modifier(Modifier::BOLD),
         ),
         Span::styled(
             format!(" ── {} ", session.capability),
@@ -85,9 +89,7 @@ pub fn render_card(
         return;
     }
 
-    let constraints: Vec<Constraint> = (0..lines_to_show)
-        .map(|_| Constraint::Length(1))
-        .collect();
+    let constraints: Vec<Constraint> = (0..lines_to_show).map(|_| Constraint::Length(1)).collect();
 
     let chunks = Layout::vertical(constraints).split(inner);
     for (i, line) in content_lines.into_iter().take(lines_to_show).enumerate() {

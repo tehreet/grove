@@ -46,7 +46,10 @@ pub fn execute(
 
     if !PathBuf::from(&events_db).exists() {
         if json {
-            let out = LogsOutput { events: vec![], count: 0 };
+            let out = LogsOutput {
+                events: vec![],
+                count: 0,
+            };
             println!("{}", json_output("logs", &out));
         } else {
             println!("{}", muted("No events.db found"));
@@ -60,7 +63,6 @@ pub fn execute(
         until,
         level: parsed_level,
         limit,
-
     };
 
     let store = EventStore::new(&events_db).map_err(|e| e.to_string())?;
@@ -69,7 +71,10 @@ pub fn execute(
         .map_err(|e| e.to_string())?;
 
     if json {
-        let out = LogsOutput { count: events.len(), events };
+        let out = LogsOutput {
+            count: events.len(),
+            events,
+        };
         println!("{}", json_output("logs", &out));
     } else {
         if events.is_empty() {
@@ -95,7 +100,9 @@ fn parse_level(s: Option<&str>) -> Result<Option<EventLevel>, String> {
         Some("info") => Ok(Some(EventLevel::Info)),
         Some("warn") => Ok(Some(EventLevel::Warn)),
         Some("error") => Ok(Some(EventLevel::Error)),
-        Some(other) => Err(format!("Unknown level: {other}. Use debug, info, warn, or error.")),
+        Some(other) => Err(format!(
+            "Unknown level: {other}. Use debug, info, warn, or error."
+        )),
     }
 }
 
@@ -118,7 +125,11 @@ fn event_type_str(et: &crate::types::EventType) -> String {
 
 pub fn format_event_line(ev: &StoredEvent) -> String {
     let ts = &ev.created_at;
-    let time_str = if ts.len() >= 19 { &ts[11..19] } else { ts.as_str() };
+    let time_str = if ts.len() >= 19 {
+        &ts[11..19]
+    } else {
+        ts.as_str()
+    };
 
     let abbrev = level_abbrev(&ev.level);
     let level_colored = match ev.level {
@@ -140,7 +151,11 @@ pub fn format_event_line(ev: &StoredEvent) -> String {
         parts.push(format!("durationMs={ms}"));
     }
     if let Some(ref args) = ev.tool_args {
-        let truncated = if args.len() > 80 { format!("{}...", &args[..80]) } else { args.clone() };
+        let truncated = if args.len() > 80 {
+            format!("{}...", &args[..80])
+        } else {
+            args.clone()
+        };
         parts.push(format!("args={truncated}"));
     }
 
@@ -173,10 +188,22 @@ mod tests {
     #[test]
     fn test_level_parse() {
         assert!(matches!(parse_level(None), Ok(None)));
-        assert!(matches!(parse_level(Some("debug")), Ok(Some(EventLevel::Debug))));
-        assert!(matches!(parse_level(Some("info")), Ok(Some(EventLevel::Info))));
-        assert!(matches!(parse_level(Some("warn")), Ok(Some(EventLevel::Warn))));
-        assert!(matches!(parse_level(Some("error")), Ok(Some(EventLevel::Error))));
+        assert!(matches!(
+            parse_level(Some("debug")),
+            Ok(Some(EventLevel::Debug))
+        ));
+        assert!(matches!(
+            parse_level(Some("info")),
+            Ok(Some(EventLevel::Info))
+        ));
+        assert!(matches!(
+            parse_level(Some("warn")),
+            Ok(Some(EventLevel::Warn))
+        ));
+        assert!(matches!(
+            parse_level(Some("error")),
+            Ok(Some(EventLevel::Error))
+        ));
         assert!(parse_level(Some("INVALID")).is_err());
     }
 

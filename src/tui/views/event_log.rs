@@ -17,11 +17,7 @@ use crate::tui::widgets::status_bar;
 pub fn render(f: &mut Frame, app: &mut App) {
     let area = f.area();
 
-    let layout = Layout::vertical([
-        Constraint::Fill(1),
-        Constraint::Length(1),
-    ])
-    .split(area);
+    let layout = Layout::vertical([Constraint::Fill(1), Constraint::Length(1)]).split(area);
 
     render_event_list(f, app, layout[0]);
     status_bar::render(f, app, layout[1]);
@@ -31,7 +27,9 @@ fn render_event_list(f: &mut Frame, app: &mut App, area: Rect) {
     let inner_height = area.height.saturating_sub(2) as usize;
     let total = app.events.len();
 
-    let scroll = app.event_log_scroll.min(total.saturating_sub(inner_height.max(1)));
+    let scroll = app
+        .event_log_scroll
+        .min(total.saturating_sub(inner_height.max(1)));
 
     let start = scroll;
     let end = (start + inner_height).min(total);
@@ -61,22 +59,18 @@ fn render_event_list(f: &mut Frame, app: &mut App, area: Rect) {
             let agent_color = agent_color_for(&ev.agent_name);
 
             ListItem::new(Line::from(vec![
-                Span::styled(
-                    format!(" {} ", time_str),
-                    Style::default().fg(MUTED_GRAY),
-                ),
+                Span::styled(format!(" {} ", time_str), Style::default().fg(MUTED_GRAY)),
                 Span::styled(
                     format!("{:<18} ", truncate(&ev.agent_name, 18)),
-                    Style::default().fg(agent_color).add_modifier(Modifier::BOLD),
+                    Style::default()
+                        .fg(agent_color)
+                        .add_modifier(Modifier::BOLD),
                 ),
                 Span::styled(
                     format!("{:<10} ", truncate(tool, 10)),
                     Style::default().fg(TEXT_PRIMARY),
                 ),
-                Span::styled(
-                    format!("{}{}", args, dur),
-                    Style::default().fg(MUTED_GRAY),
-                ),
+                Span::styled(format!("{}{}", args, dur), Style::default().fg(MUTED_GRAY)),
             ]))
         })
         .collect();
@@ -132,6 +126,8 @@ fn agent_color_for(name: &str) -> Color {
         Color::Rgb(255, 220, 100),
         Color::Rgb(100, 220, 255),
     ];
-    let hash: usize = name.bytes().fold(0usize, |acc, b| acc.wrapping_add(b as usize));
+    let hash: usize = name
+        .bytes()
+        .fold(0usize, |acc, b| acc.wrapping_add(b as usize));
     palette[hash % palette.len()]
 }
