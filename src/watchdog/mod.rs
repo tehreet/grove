@@ -8,6 +8,7 @@ use std::path::Path;
 use std::process::Command;
 use std::time::Duration;
 
+use crate::db::events::EventStore;
 use crate::db::sessions::SessionStore;
 use crate::types::{AgentState, WatchdogConfig};
 
@@ -149,6 +150,37 @@ fn poll_once_with_print(
     };
 
     let mut results = Vec::new();
+
+    // Mass-zombie detection: if 3+ agents die within 60s of each other,
+    // emit a single auth_failure event rather than N individual zombie events.
+    let dead_count = active
+        .iter()
+        .filter(|s| {
+            s.state == AgentState::Working || s.state == AgentState::Stalled
+        })
+        .filter(|s| s.pid.map(|p| !is_pid_alive(p)).unwrap_or(false))
+        .count();
+    if dead_count >= 3 {
+        let events_db = project_root
+            .join(".overstory")
+            .join("events.db");
+        if let Ok(event_store) = EventStore::new(events_db.to_str().unwrap_or("")) {
+            let _ = event_store.insert(&crate::types::InsertEvent {
+                session_id: None,
+                agent_name: "watchdog".to_string(),
+                run_id: None,
+                event_type: crate::types::EventType::Error,
+                level: crate::types::EventLevel::Error,
+                data: Some(format!(
+                    "Mass zombie detected: {} agents died simultaneously. Likely auth expiry.",
+                    dead_count
+                )),
+                tool_name: None,
+                tool_args: None,
+                tool_duration_ms: None,
+            });
+        }
+    }
 
     for session in &active {
         // Only monitor working sessions

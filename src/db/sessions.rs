@@ -185,6 +185,40 @@ impl SessionStore {
         Ok(n)
     }
 
+    /// Derive Run records from sessions grouped by run_id.
+    /// Used as a fallback when the runs table is empty (overstory never populates it).
+    pub fn derive_runs_from_sessions(&self, limit: i64) -> Result<Vec<crate::types::Run>> {
+        let mut stmt = self.conn.prepare(
+            "SELECT run_id, MIN(started_at), MAX(last_activity), COUNT(*)
+             FROM sessions
+             WHERE run_id IS NOT NULL
+             GROUP BY run_id
+             ORDER BY MIN(started_at) DESC
+             LIMIT ?1",
+        )?;
+        let rows = stmt.query_map(params![limit], |row| {
+            let id: String = row.get(0)?;
+            let started_at: String = row.get(1)?;
+            let last_activity: String = row.get(2)?;
+            let agent_count: u32 = row.get(3)?;
+            Ok((id, started_at, last_activity, agent_count))
+        })?;
+
+        let mut runs = Vec::new();
+        for row in rows {
+            let (id, started_at, completed_at, agent_count) = row?;
+            runs.push(crate::types::Run {
+                id,
+                started_at,
+                completed_at: Some(completed_at),
+                agent_count,
+                coordinator_session_id: None,
+                status: crate::types::RunStatus::Completed,
+            });
+        }
+        Ok(runs)
+    }
+
     pub fn get_by_run(&self, run_id: &str) -> Result<Vec<AgentSession>> {
         let mut stmt = self.conn.prepare(
             "SELECT id,agent_name,capability,worktree_path,branch_name,task_id,

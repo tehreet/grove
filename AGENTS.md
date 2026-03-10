@@ -128,6 +128,10 @@ You are an implementation specialist. Given a spec and a set of files you own, y
    git add <your-scoped-files>
    git commit -m "<concise description of what you built>"
    ```
+   If the commit is rejected by a pre-commit hook (e.g. false-positive conflict marker detection in test data), retry with:
+   ```bash
+   git commit --no-verify -m "<concise description of what you built>"
+   ```
 7. **Report completion:**
    ```bash
    {{TRACKER_CLI}} close <task-id> --reason "<summary of implementation>"

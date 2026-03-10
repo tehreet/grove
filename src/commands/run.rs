@@ -207,12 +207,21 @@ pub fn execute_list(limit: u32, json: bool, project_override: Option<&Path>) -> 
     }
 
     let run_store = RunStore::new(&sessions_db).map_err(|e| e.to_string())?;
-    let runs = run_store
+    let mut runs = run_store
         .list_runs(Some(crate::types::ListRunsOpts {
             limit: Some(limit as i64),
             ..Default::default()
         }))
         .map_err(|e| e.to_string())?;
+
+    // Fallback: if the runs table is empty (overstory never populates it),
+    // derive run records from the sessions table by grouping on run_id.
+    if runs.is_empty() {
+        let session_store = SessionStore::new(&sessions_db).map_err(|e| e.to_string())?;
+        runs = session_store
+            .derive_runs_from_sessions(limit as i64)
+            .map_err(|e| e.to_string())?;
+    }
 
     if json {
         let with_duration: Vec<RunWithDuration> =
