@@ -346,19 +346,19 @@ mod tests {
 
     #[test]
     fn test_execute_list_no_db() {
-        let result = execute_list(false, Some(Path::new("/tmp")));
+        let result = execute_list(false, Some(Path::new("/tmp/grove-test")));
         assert!(result.is_ok());
     }
 
     #[test]
     fn test_execute_list_json_no_db() {
-        let result = execute_list(true, Some(Path::new("/tmp")));
+        let result = execute_list(true, Some(Path::new("/tmp/grove-test")));
         assert!(result.is_ok());
     }
 
     #[test]
     fn test_execute_clean_no_db() {
-        let result = execute_clean(false, false, true, false, Some(Path::new("/tmp")));
+        let result = execute_clean(false, false, true, false, Some(Path::new("/tmp/grove-test")));
         assert!(result.is_ok());
     }
 }

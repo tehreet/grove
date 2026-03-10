@@ -390,13 +390,13 @@ mod tests {
 
     #[test]
     fn test_execute_current_no_db() {
-        let result = execute_current(false, Some(Path::new("/tmp")));
+        let result = execute_current(false, Some(Path::new("/tmp/grove-test")));
         assert!(result.is_ok());
     }
 
     #[test]
     fn test_execute_list_no_db() {
-        let result = execute_list(10, false, Some(Path::new("/tmp")));
+        let result = execute_list(10, false, Some(Path::new("/tmp/grove-test")));
         assert!(result.is_ok());
     }
 }

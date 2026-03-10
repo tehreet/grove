@@ -271,13 +271,13 @@ mod tests {
 
     #[test]
     fn test_execute_no_metrics_db() {
-        let result = execute(None, false, Some(Path::new("/tmp")));
+        let result = execute(None, false, Some(Path::new("/tmp/grove-test")));
         assert!(result.is_ok());
     }
 
     #[test]
     fn test_execute_json_no_metrics_db() {
-        let result = execute(None, true, Some(Path::new("/tmp")));
+        let result = execute(None, true, Some(Path::new("/tmp/grove-test")));
         assert!(result.is_ok());
     }
 }
