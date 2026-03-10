@@ -283,3 +283,80 @@ All four are solvable in grove's coordinator by making verification commands, in
 - `capture_tmux()` becomes a fallback for legacy tmux sessions, not the primary path
 
 **Proposed fix:** Add a `capture_agent_output(agent)` function that tries: (1) read from agent log file, (2) read from NDJSON events, (3) fall back to tmux capture. Wire this into the TUI instead of `capture_tmux()` directly.
+
+---
+
+### RETRO-018: `run list` shows "no runs" despite real run data existing
+
+**What happened:** `grove run list` returns "No runs recorded yet" even though we've completed multiple runs (Phase 5, 6, 6.5 all had coordinator runs with run IDs visible in `grove status`).
+
+**Root cause:** The `run` command likely queries a different DB table or field than where overstory stores run records. Overstory may store run state in sessions.db as metadata on the coordinator session, or in a separate runs table. The grove `run` command was built by an agent that assumed a specific DB schema that may not match.
+
+**Lesson:** Commands that query databases need their DB layer tested against REAL data written by overstory, not just mock data in unit tests. Every DB query should be verified by: (1) writing data with ov, (2) reading it with grove.
+
+**Proposed fix:** Inspect the actual sessions.db schema, compare with what `src/commands/run.rs` queries, and fix the mismatch.
+
+---
+
+### RETRO-019: `costs --json` has extra `totals` key not in overstory's output
+
+**What happened:** `grove costs --json` returns `{command, sessions, success, totals}` but `ov costs --json` returns `{command, sessions, success}`. The `totals` key is an addition that breaks JSON schema compatibility.
+
+**Root cause:** The costs builder added a convenience `totals` aggregate field. This is actually useful, but it breaks the interop contract that grove's JSON output must match overstory's schema exactly.
+
+**Lesson:** Any JSON output enhancement must be documented as a grove-specific extension, or added to overstory as well. JSON consumers (like slop-dash) may break on unexpected keys.
+
+**Proposed fix:** Either remove `totals` from grove's output, or add it to overstory. Document any intentional schema differences in CONTEXT.md.
+
+---
+
+### RETRO-020: `logs` format differs from overstory — `tool_end` vs `tool.end`
+
+**What happened:** Grove's `logs` command outputs event types as `tool_end`, `tool_start`. Overstory outputs them as `tool.end`, `tool.start` (dot-separated). This means any tooling that parses log output (slop-dash, scripts) will break when switching between grove and ov.
+
+**Root cause:** The events are stored in events.db with the dot format (that's what overstory writes). Grove's logs formatter likely transforms dots to underscores, or the event type is stored differently in grove's types.
+
+**Lesson:** Output format must be byte-identical where interop is claimed. Don't "improve" formatting without checking compatibility.
+
+---
+
+### RETRO-021: grove's process/spawn.rs has never been tested with a real agent
+
+**What happened:** Grove's core architectural advantage — direct process spawning without tmux — has never been E2E tested. Every actual agent run during grove's development went through overstory's tmux-based spawning. The Rust code in `process/spawn.rs` and `process/monitor.rs` compiles and passes unit tests but has never launched a real Claude Code process.
+
+**Root cause:** We built grove iteratively using overstory to orchestrate the build. Overstory uses tmux. Grove's native spawning path was built in Phase 3 but we never switched to using it because overstory was working. The irony: we're building the replacement but never testing the replacement.
+
+**Lesson:** The most important architectural decision (no tmux) is the least tested. Critical path code must be E2E tested even if there's a working alternative. "We'll test it later" means "we'll discover it's broken later."
+
+**Proposed fix:** Before Phase 7 (distribution), do a dedicated integration test: grove spawns a real Claude Code agent through process/spawn.rs, captures its stdout, monitors it with the watchdog, and completes a simple task. If this doesn't work, grove's entire architectural thesis is unproven.
+
+---
+
+### RETRO-022: TUI views built but never tested with live data
+
+**What happened:** Phase 6.5 added terminal viewer, split terminal, and mail reader views. All three compile and have unit tests. None have ever been run with actual live agent data. We don't know if the terminal viewer actually shows tmux content, if the split view actually renders multiple panels, or if the mail reader actually displays message bodies.
+
+**Root cause:** The TUI views were built by agents who ran `cargo test` (unit tests pass) but couldn't test the actual rendering because the tests run headless. Manual TUI testing requires live agents in tmux sessions, which requires a separate dispatch — it's a chicken-and-egg problem.
+
+**Lesson:** TUI features must be tested during the NEXT agent run after they're built, not "someday." The Phase 6.5 conclusion checklist should have included: "Run Phase 6.6 dispatch, then use the TUI to monitor it and verify terminal/split/mail views work."
+
+**Proposed fix:** When we dispatch Phase 6.6, explicitly include a manual TUI testing step: while agents are building, open `grove dashboard`, navigate to terminal view, split view, and mail reader. Document what works and what doesn't.
+
+---
+
+### RETRO-023: No automated pre-merge quality gate for conflict markers
+
+**What happened:** RETRO-015 documented committing conflict markers. This happened because there's no automated check.
+
+**Root cause:** `git add -A && git commit` doesn't check file contents. `cargo build` eventually catches syntax errors from conflict markers, but with misleading error messages.
+
+**Lesson:** This should be a git hook, not a human memory item.
+
+**Proposed fix:** Add to `grove hooks install`:
+```bash
+# pre-commit hook
+if grep -rn "<<<<<<< " src/ --include="*.rs" 2>/dev/null; then
+    echo "ERROR: Conflict markers found in source files"
+    exit 1
+fi
+```
