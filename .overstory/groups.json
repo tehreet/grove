@@ -117,5 +117,23 @@
     "status": "active",
     "createdAt": "2026-03-10T04:32:28.172216166+00:00",
     "completedAt": null
+  },
+  {
+    "id": "group-349735d2",
+    "name": "verify-group",
+    "memberIssueIds": [
+      "test-issue-1"
+    ],
+    "status": "active",
+    "createdAt": "2026-03-10T04:39:40.882328834+00:00",
+    "completedAt": null
+  },
+  {
+    "id": "group-22f1b622",
+    "name": "verify-group",
+    "memberIssueIds": [],
+    "status": "active",
+    "createdAt": "2026-03-10T04:44:31.586270224+00:00",
+    "completedAt": null
   }
 ]
