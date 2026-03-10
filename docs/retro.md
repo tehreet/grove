@@ -265,3 +265,21 @@ All four are solvable in grove's coordinator by making verification commands, in
 **Root cause:** Same as RETRO-009. The LLM-based coordinator doesn't reliably merge branches as part of its workflow. It receives "done" signals but doesn't act on them.
 
 **Lesson:** This is the third time. The coordinator merge gap is structural, not incidental. Grove's native Rust coordinator MUST have automatic merge as a first-class step in its event loop — not an LLM decision.
+
+---
+
+### RETRO-017: TUI terminal viewer uses tmux capture-pane — contradicts grove's architecture
+
+**What happened:** The Phase 6.5 terminal viewer reads agent output via `tmux capture-pane`. This reintroduces a tmux dependency into grove when the entire architecture (doc/architecture.md) was built to eliminate tmux for agent spawning.
+
+**Root cause:** The spec said "reads tmux session content" because the TUI needs to show agent output, and right now agents are spawned by overstory (which uses tmux). The builder followed the spec literally.
+
+**Why it's OK for now:** Grove's TUI currently monitors overstory-managed agents, which DO use tmux sessions. The tmux read is backward-compatible monitoring, not agent spawning.
+
+**What must change when grove spawns its own agents:**
+- grove agents use direct process pipes (process/spawn.rs + process/monitor.rs)
+- Agent stdout is captured as NDJSON events in events.db
+- The terminal viewer should read from the agent's log file (`.overstory/logs/<agent>.log`) or from the NDJSON event stream, not tmux
+- `capture_tmux()` becomes a fallback for legacy tmux sessions, not the primary path
+
+**Proposed fix:** Add a `capture_agent_output(agent)` function that tries: (1) read from agent log file, (2) read from NDJSON events, (3) fall back to tmux capture. Wire this into the TUI instead of `capture_tmux()` directly.
