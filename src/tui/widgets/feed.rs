@@ -54,18 +54,16 @@ pub fn render(f: &mut Frame, app: &App, area: Rect) {
 
             let event_type_str = event_type_to_str(&ev.event_type);
             let tool_part = if let Some(ref tool) = ev.tool_name {
-                let args_preview = ev
-                    .tool_args
-                    .as_deref()
-                    .map(|a| truncate_args(a, 30))
-                    .unwrap_or_default();
-                let dur = ev
-                    .tool_duration_ms
-                    .map(|ms| format!(" ({}ms)", ms))
-                    .unwrap_or_default();
-                format!("{} {}{}", tool, args_preview, dur)
+                let (icon, desc) = format_tool_event(tool, ev.tool_args.as_deref());
+                let dur = ev.tool_duration_ms.map(|ms| format!(" ({}ms)", ms)).unwrap_or_default();
+                format!("{} {}{}", icon, desc, dur)
             } else {
-                event_type_str
+                match &ev.event_type {
+                    EventType::SessionStart => "\u{25b6} started".to_string(),
+                    EventType::SessionEnd => "\u{23f9} completed".to_string(),
+                    EventType::MailSent => "\u{2709} mail".to_string(),
+                    _ => event_type_str,
+                }
             };
 
             let line = Line::from(vec![
@@ -126,6 +124,69 @@ fn truncate(s: &str, max: usize) -> String {
         s.to_string()
     } else {
         format!("{}…", &s[..max.saturating_sub(1)])
+    }
+}
+
+fn format_tool_event(tool_name: &str, args: Option<&str>) -> (String, String) {
+    let args_json: Option<serde_json::Value> = args.and_then(|a| serde_json::from_str(a).ok());
+
+    match tool_name {
+        "Bash" => {
+            let cmd = args_json
+                .as_ref()
+                .and_then(|v| v.get("command"))
+                .and_then(|v| v.as_str())
+                .unwrap_or("...");
+            ("$".to_string(), truncate(cmd, 40))
+        }
+        "Edit" => {
+            let path = args_json
+                .as_ref()
+                .and_then(|v| v.get("file_path"))
+                .and_then(|v| v.as_str())
+                .map(shorten_path)
+                .unwrap_or_else(|| "...".to_string());
+            ("\u{270e}".to_string(), path)
+        }
+        "Read" => {
+            let path = args_json
+                .as_ref()
+                .and_then(|v| v.get("file_path"))
+                .and_then(|v| v.as_str())
+                .map(shorten_path)
+                .unwrap_or_else(|| "...".to_string());
+            ("\u{25c9}".to_string(), path)
+        }
+        "Write" => {
+            let path = args_json
+                .as_ref()
+                .and_then(|v| v.get("file_path"))
+                .and_then(|v| v.as_str())
+                .map(shorten_path)
+                .unwrap_or_else(|| "...".to_string());
+            ("\u{2295}".to_string(), path)
+        }
+        "Grep" | "Glob" => {
+            let pattern = args_json
+                .as_ref()
+                .and_then(|v| v.get("pattern"))
+                .and_then(|v| v.as_str())
+                .unwrap_or("...");
+            ("\u{2315}".to_string(), truncate(pattern, 40))
+        }
+        _ => {
+            let preview = args.map(|a| truncate_args(a, 30)).unwrap_or_default();
+            (tool_name.to_string(), preview)
+        }
+    }
+}
+
+fn shorten_path(path: &str) -> String {
+    let parts: Vec<&str> = path.split('/').collect();
+    if parts.len() <= 2 {
+        path.to_string()
+    } else {
+        format!("\u{2026}/{}", parts[parts.len() - 2..].join("/"))
     }
 }
 

@@ -31,7 +31,7 @@ fn render_event_list(f: &mut Frame, app: &mut App, area: Rect) {
     let inner_height = area.height.saturating_sub(2) as usize;
     let total = app.events.len();
 
-    let scroll = app.event_log_scroll.min(total.saturating_sub(1));
+    let scroll = app.event_log_scroll.min(total.saturating_sub(inner_height.max(1)));
 
     let start = scroll;
     let end = (start + inner_height).min(total);

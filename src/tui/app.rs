@@ -382,6 +382,12 @@ impl App {
             return;
         }
 
+        // Global keybindings (before view dispatch)
+        if key.code == KeyCode::Char('?') {
+            self.show_help = true;
+            return;
+        }
+
         // View-specific handling
         match self.current_view {
             View::AgentDetail => self.handle_key_detail(key),
@@ -395,7 +401,6 @@ impl App {
 
         match key.code {
             KeyCode::Char('q') => self.running = false,
-            KeyCode::Char('?') => self.show_help = true,
             KeyCode::Char('r') => self.refresh_all(),
             KeyCode::Char('a') => self.show_completed = !self.show_completed,
             KeyCode::Char('/') => {
