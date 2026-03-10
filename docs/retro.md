@@ -506,3 +506,74 @@ fi
 **Fix:** Use `--dangerously-bypass-approvals-and-sandbox` instead of `--full-auto` for overstory agents, since the agents run in isolated git worktrees (already sandboxed by grove). Or switch to `codex exec --approval-mode=never` which may allow git.
 
 **Broader lesson:** Each runtime has different permission/sandbox models. Claude Code uses `--dangerously-skip-permissions`. Codex needs its equivalent. The adapter must match the runtime's security model to grove's worktree-based isolation.
+
+---
+
+### RETRO-034: Phase 9A — tmux elimination removes 662 lines, zero functional regressions
+
+**What happened:** Removed ALL tmux binary calls from grove's production code. Deleted `src/worktree/tmux.rs` entirely. Touched 13 files: sling.rs (removed spawn_tmux), nudge.rs (rewritten to use mail instead of send-keys), stop.rs (kill by PID), clean.rs (kill PIDs from sessions.db), status.rs (removed tmux session listing), doctor.rs (removed tmux check), worktree_cmd.rs (kill by PID), watchdog/mod.rs (PID-only health checks), tui/app.rs (removed capture_tmux, log-file-only), tui/views/overview.rs (log-file-only), init.rs (removed tmux mention).
+
+**Result:** 26,796 lines (down from 27,458). 435 tests pass, 0 failures. Zero tmux binary calls in production code. `tmux_session` field kept in DB schema as empty string for backward compat.
+
+**Key decisions:**
+- Nudge via mail is better than tmux send-keys: async, reliable, no timing issues, works without tmux
+- Stop by PID with SIGTERM → 2s wait → SIGKILL is more robust than killing tmux sessions
+- TUI reads from `.overstory/logs/<agent>/<timestamp>/stdout.log` — persistent, not ephemeral pane content
+
+---
+
+### RETRO-035: Phase 9B — runtime adapters unlock multi-provider agent spawning
+
+**What happened:** Added real (not stub) Codex, Gemini, and Copilot runtime adapters. Each writes overlay to the correct instruction file (AGENTS.md, GEMINI.md, .github/copilot-instructions.md). Added per-capability routing via `config.runtime.capabilities` map. Stub runtimes remain for pi/sapling/opencode.
+
+**Result:** 27,297 lines, 453 tests. `grove sling --runtime codex` spawns codex, `--runtime gemini` spawns gemini. Per-capability routing tested: `runtime.capabilities.builder = "codex"` correctly routes builders to codex while leads use claude.
+
+---
+
+### RETRO-036: Codex fires parallel cargo builds that deadlock on shared lock file
+
+**What happened:** When Codex reads grove's overlay (which lists quality gates: cargo test, cargo clippy, cargo build), it fires all three simultaneously. The three cargo processes contend on Cargo's file lock, and the codex process dies silently — no error message, no graceful exit. The agent creates the file correctly but never gets to git commit.
+
+**Root cause:** Codex exec parallelizes tool calls by default. Cargo uses a file lock that allows only one build at a time. Three parallel cargo invocations deadlock or timeout, and codex's process exits.
+
+**Fix applied:** Tell the spec explicitly to skip quality gates for simple tasks. Long-term fix: the overlay should tell codex to run gates sequentially (`cargo test && cargo clippy && cargo build` as one command, not three).
+
+**Broader lesson:** Each runtime has different execution models. Claude Code runs tool calls sequentially. Codex parallelizes them. The overlay and spec must account for the runtime's execution model. Quality gates should be a single sequential command, not three separate ones.
+
+---
+
+### RETRO-037: Codex end-to-end success — grove orchestrated a Codex agent to create + commit
+
+**What happened:** `grove sling codex-commit --runtime codex` spawned a Codex agent that:
+1. Read AGENTS.md (grove's overlay, written to the correct Codex instruction path)
+2. Read the dispatch mail
+3. Created CODEX_PROOF.md with the requested content
+4. Ran `git add -A && git commit` successfully (commit f20e139 on branch)
+5. Sent worker_done mail to coordinator
+6. Sent result mail
+7. Reported ml/sd unavailable via error mail (correct — those CLIs aren't installed)
+8. Exited cleanly
+
+**What made it work:**
+- `--dangerously-bypass-approvals-and-sandbox` gave codex full system access (needed for git)
+- `--no-directives` on sling suppressed quality gates in the overlay (avoids parallel cargo deadlock)
+- Simple, explicit spec: "create file, commit, do nothing else"
+- The model alias filtering worked: codex received no `--model` flag (default gpt-5.4) instead of the invalid `claude-sonnet-4-6`
+
+**This proves:** Grove can orchestrate agents across different AI runtimes. The runtime adapter pattern works — same overlay template, same mail system, same worktree isolation, different CLI tool underneath.
+
+---
+
+### RETRO-038: Full gap analysis revealed 6 missing runtime adapters and ~18 feature gaps
+
+**What happened:** Exhaustive 1:1 comparison of every overstory file, command, and feature against grove. Documented in `docs/gap-analysis.md`.
+
+**Key findings:**
+- Grove had 90% command-level parity but only 15% runtime-level parity (1 of 7 adapters)
+- 167 tmux references across 20 files (now eliminated in Phase 9A)
+- Missing runtime trait methods: buildPrintCommand, parseTranscript, parseEvents, requiresBeaconVerification
+- Missing AI features: merge tiers 3-4, watchdog triage
+- Missing command features: coordinator ask, group close/auto-close, eval system, init ecosystem bootstrap
+- Missing config: per-capability runtime routing (now added in Phase 9B)
+
+**Lesson:** Should have done this audit at Phase 1, not Phase 9. Building feature-for-feature without a gap analysis led to cumulative drift. The audit took 30 minutes and would have saved days of rework.

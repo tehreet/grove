@@ -1,10 +1,10 @@
 # Grove Project Context
 
-**Last updated:** 2026-03-10
+**Last updated:** 2026-03-10 (Phase 9B complete)
 
 ## What Is Grove
 
-Grove is a Rust rebuild of [overstory](https://github.com/jayminwest/overstory), a multi-agent orchestration system for AI coding agents. It's not a line-by-line port — it fixes architectural problems in the TypeScript original. See `docs/architecture.md` for the full rationale.
+Grove is a Rust rebuild of [overstory](https://github.com/jayminwest/overstory), a multi-agent orchestration system for AI coding agents. It fixes architectural problems in the TypeScript original — most importantly, grove spawns agents as direct child processes instead of tmux sessions.
 
 **Repo:** https://github.com/tehreet/grove
 **VPS:** Hetzner CCX33 (8 dedicated AMD cores, 32GB RAM) at `ubuntu-32gb-hil-1`
@@ -12,126 +12,77 @@ Grove is a Rust rebuild of [overstory](https://github.com/jayminwest/overstory),
 
 ## Current State
 
-- **21,610 lines of Rust** across 48 source files
-- **387 passing tests** (7 failures — all `*_no_db` edge cases from VPS migration, not real bugs)
-- **31 working commands**, 4 stubs remaining (dashboard, eval, update, upgrade, completions)
-- **Compiles clean** with `cargo build`
+- **27,315 lines of Rust** across ~85 source files
+- **453 passing tests**, 0 failures
+- **35 working commands**, 1 hidden stub (eval)
+- **Compiles clean**, clippy clean
 - **Interoperates** with overstory — reads/writes the same `.overstory/` databases
+- **4 runtime adapters:** Claude Code, Codex (OpenAI), Gemini (Google), Copilot (GitHub)
+- **Zero tmux dependency** — all agents spawned as direct child processes
+- **Proven end-to-end:** Claude Code agent and Codex agent both successfully spawned, did work, and committed via grove
 
 ## Phase Status
 
-| Phase | Spec | Status | What It Covers |
-|-------|------|--------|----------------|
-| Phase 0 | `docs/phase-0.md` | ✅ Done + Verified | Types, config, errors, DB layer, CLI skeleton, logging |
-| Phase 1 | `docs/phase-1.md` | ✅ Done + Verified | Read commands: status, mail list/check, costs, doctor |
-| Phase 2 | `docs/phase-2.md` | ✅ Done + Verified | Write commands: mail send/reply, clean, stop, nudge, init, spec, hooks, merge |
-| Phase 3 | `docs/phase-3.md` | ✅ Done + Verified | Process management: worktree, runtimes, overlay, sling, log, watchdog |
-| Phase 4 | `docs/phase-4.md` + `phase-4-bugfix.md` | ✅ Done + Verified | Coordinator daemon + observability: agents, group, run, feed, errors, inspect, trace |
-| Phase 5 | `docs/phase-5.md` | ✅ Done + Verified | Feature parity: logs, replay, metrics, monitor, watch, prime, ecosystem, supervisor |
-| Phase 6 | `docs/phase-6.md` | 📝 Spec Written | TUI dashboard (ratatui) |
-| Phase 7 | `docs/phase-7.md` | 📝 Spec Written | Distribution: completions, update, upgrade, CI, install script |
-
-## Command Status (35 total)
-
-**Live (31):** agents, init, sling, spec, prime, stop, status, inspect, clean, doctor, coordinator, hooks, monitor, mail (list/check/send/reply/read/purge), merge, nudge, group, worktree, log, logs, watch, trace, ecosystem, feed, errors, replay, run, costs, metrics
-
-**Stubs (4):** dashboard (Phase 6), eval (Phase 7 or later), update (Phase 7), upgrade (Phase 7), completions (Phase 7)
-
-**Deprecated (1):** supervisor (prints deprecation message)
+| Phase | Status | What It Covers |
+|-------|--------|----------------|
+| Phase 0-5 | ✅ Done + Verified | All core commands, DB layer, process management, coordinator |
+| Phase 6 | ✅ Done + Verified | TUI dashboard (ratatui) — 7 views |
+| Phase 6.5 | ✅ Done + Verified | TUI enhancements — terminal viewer, mail reader, rich feed |
+| Phase 6.6 | ✅ Done + Verified | TUI polish — Dracula theme, cost analytics, timeline/Gantt, toasts |
+| Phase 7 | ✅ Done | Distribution — completions, update, upgrade, CI/CD, install.sh |
+| Phase 8 | ✅ Done + Proven | Headless agent spawning (--headless flag, no tmux) |
+| Phase 8.5 | ✅ Done + Proven | Headless lifecycle (spawn→working→completed via monitor daemon) |
+| Phase 9A | ✅ Done | Eliminate tmux — deleted tmux.rs, 0 tmux binary calls |
+| Phase 9B | ✅ Done + Proven | Runtime adapters — Codex, Gemini, Copilot + per-capability routing |
+| Phase 9C | 📝 Spec Written | AI merge tiers 3-4, watchdog triage |
+| Phase 9D | 📝 Spec Written | Coordinator ask, group close, eval, init bootstrap |
+| Phase 9E | 📝 Spec Written | Config gaps (merge settings, print runtime) |
 
 ## Key Architecture Decisions
 
-1. **No tmux for agent spawning.** Agents are child processes with stdin/stdout pipes. Tmux kept as optional fallback for interactive runtimes only.
-2. **Coordinator is a Rust event loop, not an LLM.** Daemon mode with PID file + log file. LLM called only for one-shot task decomposition via Claude API.
-3. **Typed merge outcomes.** `MergeOutcome::ContentDisplaced` forces handling of silently dropped content — fixing overstory's critical bug #89.
-4. **Single binary distribution.** SQLite bundled via rusqlite. No Bun/npm/Node dependency.
+1. **No tmux.** Zero tmux binary calls. Agents are child processes with stdout/stderr piped to log files. PIDs tracked in sessions.db. Monitor daemon detects process death via /proc/<pid>.
+2. **Multi-runtime.** Claude Code, Codex, Gemini, Copilot adapters. Each writes overlay to the correct instruction file (CLAUDE.md, AGENTS.md, GEMINI.md, copilot-instructions.md). Per-capability routing from config.
+3. **Nudge via mail.** Not tmux send-keys. Async, reliable, works without tmux.
+4. **Coordinator is a Rust event loop.** Daemon mode with PID file. LLM called only for one-shot task decomposition.
+5. **Typed merge outcomes.** `MergeOutcome::ContentDisplaced` forces handling of silently dropped content.
+6. **Single binary distribution.** SQLite bundled via rusqlite. No Bun/npm/Node dependency.
 
 ## How We Build Grove
 
-We use **overstory itself** to orchestrate the Rust build. The grove repo has `.overstory/config.yaml` with Rust quality gates (`cargo build`, `cargo test`, `cargo clippy`).
+We use **grove itself** (+ overstory as fallback when Claude Max quota is exhausted) to orchestrate builds:
 
-**Workflow:**
-1. Write a phase spec in `docs/phase-N.md` with deliverables, file scope, verification commands, acceptance criteria
-2. Start overstory coordinator: `cd /home/joshf/grove && ov coordinator start --no-attach`
-3. Send the task: `ov coordinator send --subject "Build Phase N" --body "Read docs/phase-N.md..."`
-4. Monitor: `ov status` or `ov dashboard` from the grove directory
-5. After agents complete, merge any unmerged branches
-6. Run verification commands from the spec
-7. Fix bugs via `ov sling` dispatch with explicit bug specs
-8. Push to GitHub
+**Primary workflow (grove):**
+1. Write spec in `docs/phase-N.md`
+2. `grove sling <task> --runtime codex --capability builder --name <n> --spec docs/phase-N.md --files <scope>`
+3. `grove monitor start` — watches PIDs for lifecycle transitions
+4. `grove status` or `grove dashboard` to monitor
+5. `grove merge --branch overstory/<agent>/<task>` when complete
+6. Verify, fix, push
 
-**Important rules:**
-- Only use `sloperations:ov_status` MCP tool (read-only). Never use ov_dispatch or ov_pipeline — removed from server.
-- For dispatching work: `ov sling` or `ov coordinator send` via `run_command`
-- Agents must commit incrementally (CLAUDE.md has this rule)
-- Every spec needs verification commands — agents won't self-verify otherwise (RETRO-001)
-- main.rs wiring is ALWAYS missed — include it explicitly in file scope and verification (RETRO-007, RETRO-011)
+**Fallback workflow (overstory):**
+1. `ov coordinator start --no-attach && ov coordinator send --subject "..." --body "..."`
+2. `ov dashboard` to monitor
+3. When agents complete, merge and verify
 
-## Known Issues
+**Rules:**
+- Only use `sloperations:ov_status` MCP tool (read-only). For dispatching: `ov sling` or `grove sling` via `run_command`.
+- Update `docs/retro.md` (RETRO-NNN format) for every process failure or architectural insight.
+- Agents must commit incrementally.
+- Specs need verification commands — agents won't self-verify (RETRO-001).
+- Codex agents: use `--no-directives` to avoid parallel cargo deadlock (RETRO-036). Or ensure quality gates are a single sequential command.
 
-- **7 test failures:** `*_no_db` tests in metrics_cmd, run, worktree_cmd. These panic when no database exists instead of handling gracefully. Minor fix needed.
-- **supervisor:** Still a stub. Should print deprecation message. Very low priority.
+## Remaining Gaps (vs overstory)
 
-## File Layout
+See `docs/gap-analysis.md` for full analysis. Key gaps:
+- **Runtime trait methods:** buildPrintCommand, parseTranscript, parseEvents (needed for AI merge + cost tracking)
+- **AI features:** Merge tiers 3-4 (LLM conflict resolution), watchdog triage (AI failure classification)
+- **Commands:** coordinator ask (request-reply), group close/auto-close, eval system, init ecosystem bootstrap
+- **Adapters:** Pi, Sapling, OpenCode are stubs (basic command generation only)
 
-```
-grove/
-├── Cargo.toml              # Dependencies: clap, rusqlite, serde, ratatui, tokio, reqwest...
-├── CLAUDE.md               # Agent instructions (read by overstory agents working on grove)
-├── CONTEXT.md              # THIS FILE
-├── agents/                 # Agent .md definitions (copied from overstory, used as-is)
-├── templates/
-│   └── overlay.md.tmpl     # Overlay template (rendered by grove sling)
-├── reference/              # TypeScript source from overstory (behavioral reference, not ported 1:1)
-├── docs/
-│   ├── architecture.md     # Grand vision spec (the gist)
-│   ├── phase-0.md through phase-7.md  # Phase specs
-│   ├── retro.md            # 11 lessons learned (RETRO-001 through RETRO-011)
-│   ├── bugs-and-gaps.md    # Bug tracker from Phase 0-2 testing
-│   └── testing-plan.md     # Integration test plan
-├── src/
-│   ├── main.rs             # CLI entry point (clap, all 35 commands)
-│   ├── types.rs            # All shared types (1,730 lines)
-│   ├── config.rs           # YAML config loader
-│   ├── errors.rs           # thiserror error types
-│   ├── json.rs             # JSON output envelope
-│   ├── logging/mod.rs      # Brand colors, formatters
-│   ├── db/                 # Database layer (sessions, mail, events, metrics, merge_queue)
-│   ├── commands/           # One file per command (~16 command files)
-│   ├── agents/             # Overlay rendering, manifest parsing
-│   ├── runtimes/           # Claude runtime adapter + registry
-│   ├── process/            # Direct process spawning (grove's tmux replacement)
-│   ├── worktree/           # Git worktree + tmux management
-│   ├── merge/              # 4-tier resolver with content displacement detection
-│   ├── coordinator/        # Native event loop + planner
-│   ├── watchdog/           # Health monitoring
-│   └── tui/                # (Phase 6 — not yet built)
-├── tests/
-│   └── smoke_real_db.rs    # Integration tests against real .overstory/ databases
-└── .overstory/             # Overstory project config (overstory manages grove's own build)
-```
+## Retro
 
-## Overstory Fork
-
-Our overstory fork with custom additions (verifier agent, TUI, mulch directives, eval system):
-- **Repo:** https://github.com/tehreet/overstory
-- **Location:** `/home/joshf/overstory`
-- **35 commits ahead** of upstream jayminwest/overstory
-- **PR #100** open: verifier agent + agent-browser integration
-
-## Related Projects
-
-- **slop-dash:** Next.js observability dashboard at `/home/joshf/slop-dash` (https://github.com/tehreet/slop-dash)
-- **sloperations:** MCP server bridge at `/home/joshf/claude-bridge` — provides `ov_status`, `run_command`, `tmux_read/send`, `read_file`, `write_file`, `list_directory`
-
-## What's Next
-
-**Phase 6: TUI Dashboard** (`docs/phase-6.md`)
-- ratatui terminal UI with overview, agent detail, event log, help views
-- Keyboard navigation, live data polling, brand-themed styling
-
-**Phase 7: Distribution** (`docs/phase-7.md`)
-- Shell completions (clap_complete), self-update, cross-compilation CI, install script
-- Goal: `curl -fsSL https://grove.sh/install | sh`
-
-**Before Phase 6:** Fix the 7 `*_no_db` test failures from the VPS migration.
+38 entries in `docs/retro.md` covering every process failure, architectural insight, and milestone since Phase 0. Key themes:
+- Verification gaps (RETRO-001, 002, 014): agents check "compiles" not "works"
+- Merge gaps (RETRO-008, 009, 016): coordinator must merge sequentially as agents complete
+- tmux elimination (RETRO-017, 031, 032, 034): proven architecture, zero tmux
+- Multi-runtime (RETRO-033, 036, 037): Codex end-to-end success, sandbox/parallelism lessons
