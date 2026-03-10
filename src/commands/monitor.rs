@@ -119,18 +119,6 @@ pub fn execute_start(
 
     let sessions_db = format!("{root_str}/.overstory/sessions.db");
 
-    // Check tier2_enabled config flag
-    let config = load_config(&root, project_override).unwrap_or_default();
-    if !config.watchdog.tier2_enabled {
-        let msg = "Monitor agent (Tier 2) is disabled. Set watchdog.tier2Enabled: true in .overstory/config.yaml to enable.";
-        if json {
-            println!("{}", json_error("monitor start", msg));
-        } else {
-            eprintln!("{msg}");
-        }
-        return Err(msg.to_string());
-    }
-
     // Check if already running
     if let Some(pid) = read_pid_file(&root) {
         if pid_is_alive(pid) {

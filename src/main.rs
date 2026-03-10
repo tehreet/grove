@@ -986,6 +986,9 @@ struct MonitorStartArgs {
     /// Run in foreground (used internally)
     #[arg(long, hide = true)]
     foreground: bool,
+    /// Start in background without attaching to the terminal
+    #[arg(long)]
+    no_attach: bool,
     /// Output as JSON
     #[arg(long)]
     json: bool,
@@ -1357,7 +1360,10 @@ fn run_command(
                 project,
             ),
         },
-        Commands::Supervisor(_) => not_yet_implemented("supervisor", json),
+        Commands::Supervisor(_) => {
+            println!("grove supervisor: deprecated. Use `grove coordinator` instead.");
+            Ok(())
+        }
         Commands::Hooks(args) => match args.command {
             HooksSubcommand::Install(a) => commands::hooks::execute_install(
                 a.force,
