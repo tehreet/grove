@@ -14,26 +14,25 @@ fn read_real_sessions_db() {
         eprintln!("Skipping: no sessions.db found");
         return;
     }
-    let conn = rusqlite::Connection::open_with_flags(
-        db_path,
-        rusqlite::OpenFlags::SQLITE_OPEN_READ_ONLY,
-    ).expect("Failed to open sessions.db");
+    let conn =
+        rusqlite::Connection::open_with_flags(db_path, rusqlite::OpenFlags::SQLITE_OPEN_READ_ONLY)
+            .expect("Failed to open sessions.db");
 
     let count: i64 = conn
         .query_row("SELECT COUNT(*) FROM sessions", [], |row| row.get(0))
         .expect("Failed to query sessions");
-    
+
     println!("sessions.db: {} sessions", count);
     assert!(count >= 0);
 
     // Read actual agent names
     let mut stmt = conn
-        .prepare("SELECT agent_name, capability, state FROM sessions ORDER BY started_at DESC LIMIT 5")
+        .prepare(
+            "SELECT agent_name, capability, state FROM sessions ORDER BY started_at DESC LIMIT 5",
+        )
         .expect("Failed to prepare");
     let rows: Vec<(String, String, String)> = stmt
-        .query_map([], |row| {
-            Ok((row.get(0)?, row.get(1)?, row.get(2)?))
-        })
+        .query_map([], |row| Ok((row.get(0)?, row.get(1)?, row.get(2)?)))
         .expect("Failed to query")
         .filter_map(|r| r.ok())
         .collect();
@@ -52,10 +51,9 @@ fn read_real_mail_db() {
         eprintln!("Skipping: no mail.db found");
         return;
     }
-    let conn = rusqlite::Connection::open_with_flags(
-        db_path,
-        rusqlite::OpenFlags::SQLITE_OPEN_READ_ONLY,
-    ).expect("Failed to open mail.db");
+    let conn =
+        rusqlite::Connection::open_with_flags(db_path, rusqlite::OpenFlags::SQLITE_OPEN_READ_ONLY)
+            .expect("Failed to open mail.db");
 
     let count: i64 = conn
         .query_row("SELECT COUNT(*) FROM messages", [], |row| row.get(0))
@@ -77,7 +75,13 @@ fn read_real_mail_db() {
         .collect();
 
     for (from, to, subject, typ) in &rows {
-        println!("  {} -> {}: [{}] {}", from, to, typ, &subject[..subject.len().min(60)]);
+        println!(
+            "  {} -> {}: [{}] {}",
+            from,
+            to,
+            typ,
+            &subject[..subject.len().min(60)]
+        );
     }
 }
 
@@ -88,10 +92,9 @@ fn read_real_events_db() {
         eprintln!("Skipping: no events.db found");
         return;
     }
-    let conn = rusqlite::Connection::open_with_flags(
-        db_path,
-        rusqlite::OpenFlags::SQLITE_OPEN_READ_ONLY,
-    ).expect("Failed to open events.db");
+    let conn =
+        rusqlite::Connection::open_with_flags(db_path, rusqlite::OpenFlags::SQLITE_OPEN_READ_ONLY)
+            .expect("Failed to open events.db");
 
     let count: i64 = conn
         .query_row("SELECT COUNT(*) FROM events", [], |row| row.get(0))
@@ -105,9 +108,7 @@ fn read_real_events_db() {
         .prepare("SELECT event_type, COUNT(*) FROM events GROUP BY event_type ORDER BY COUNT(*) DESC LIMIT 10")
         .expect("Failed to prepare");
     let rows: Vec<(String, i64)> = stmt
-        .query_map([], |row| {
-            Ok((row.get(0)?, row.get(1)?))
-        })
+        .query_map([], |row| Ok((row.get(0)?, row.get(1)?)))
         .expect("Failed to query")
         .filter_map(|r| r.ok())
         .collect();
@@ -124,10 +125,9 @@ fn read_real_metrics_db() {
         eprintln!("Skipping: no metrics.db found");
         return;
     }
-    let conn = rusqlite::Connection::open_with_flags(
-        db_path,
-        rusqlite::OpenFlags::SQLITE_OPEN_READ_ONLY,
-    ).expect("Failed to open metrics.db");
+    let conn =
+        rusqlite::Connection::open_with_flags(db_path, rusqlite::OpenFlags::SQLITE_OPEN_READ_ONLY)
+            .expect("Failed to open metrics.db");
 
     let count: i64 = conn
         .query_row("SELECT COUNT(*) FROM sessions", [], |row| row.get(0))
@@ -155,11 +155,15 @@ fn config_loads_from_real_overstory_dir() {
     let content = std::fs::read_to_string(config_path).expect("Failed to read config");
     let value: serde_yaml::Value = serde_yaml::from_str(&content).expect("Failed to parse YAML");
 
-    let project_name = value["project"]["name"].as_str().expect("project.name missing");
+    let project_name = value["project"]["name"]
+        .as_str()
+        .expect("project.name missing");
     println!("config: project.name = {}", project_name);
     assert_eq!(project_name, "grove");
 
-    let quality_gates = value["project"]["qualityGates"].as_sequence().expect("qualityGates missing");
+    let quality_gates = value["project"]["qualityGates"]
+        .as_sequence()
+        .expect("qualityGates missing");
     println!("config: {} quality gates", quality_gates.len());
     assert!(quality_gates.len() >= 2);
 }

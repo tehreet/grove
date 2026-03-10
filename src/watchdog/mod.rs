@@ -155,15 +155,11 @@ fn poll_once_with_print(
     // emit a single auth_failure event rather than N individual zombie events.
     let dead_count = active
         .iter()
-        .filter(|s| {
-            s.state == AgentState::Working || s.state == AgentState::Stalled
-        })
+        .filter(|s| s.state == AgentState::Working || s.state == AgentState::Stalled)
         .filter(|s| s.pid.map(|p| !is_pid_alive(p)).unwrap_or(false))
         .count();
     if dead_count >= 3 {
-        let events_db = project_root
-            .join(".overstory")
-            .join("events.db");
+        let events_db = project_root.join(".overstory").join("events.db");
         if let Ok(event_store) = EventStore::new(events_db.to_str().unwrap_or("")) {
             let _ = event_store.insert(&crate::types::InsertEvent {
                 session_id: None,
