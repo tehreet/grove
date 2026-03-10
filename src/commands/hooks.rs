@@ -9,7 +9,7 @@
 //! `.claude/` only when the user explicitly opts in.
 
 use std::fs;
-use std::path::Path;
+use std::path::{Path, PathBuf};
 
 use serde_json::Value;
 
@@ -36,8 +36,7 @@ fn is_duplicate_entry(a: &Value, b: &Value) -> bool {
                 return false;
             }
             ah.iter().zip(bh.iter()).all(|(ac, bc)| {
-                ac.get("type").and_then(Value::as_str)
-                    == bc.get("type").and_then(Value::as_str)
+                ac.get("type").and_then(Value::as_str) == bc.get("type").and_then(Value::as_str)
                     && ac.get("command").and_then(Value::as_str)
                         == bc.get("command").and_then(Value::as_str)
             })
@@ -90,6 +89,74 @@ pub fn merge_hooks_by_event_type(
 }
 
 // ---------------------------------------------------------------------------
+// Pre-commit hook
+// ---------------------------------------------------------------------------
+
+const PRECOMMIT_MARKER: &str = "grove-conflict-marker-check";
+
+const PRECOMMIT_SCRIPT: &str = r#"#!/bin/sh
+# grove-conflict-marker-check
+CONFLICT_FILES=$(git diff --cached --name-only --diff-filter=ACM -- '*.rs' | xargs grep -l '<<<<<<< ' 2>/dev/null)
+if [ -n "$CONFLICT_FILES" ]; then
+    echo 'ERROR: Conflict markers found in staged .rs files:'
+    echo "$CONFLICT_FILES"
+    echo ''
+    echo 'Resolve conflicts before committing.'
+    exit 1
+fi
+exit 0
+"#;
+
+/// Install a git pre-commit hook that rejects conflict markers in .rs files.
+///
+/// Uses `git rev-parse --git-common-dir` to locate the hooks directory.
+/// Skips if an existing hook not written by grove is present (unless force).
+pub fn install_git_precommit_hook(project_root: &Path, force: bool) -> Result<(), String> {
+    let output = std::process::Command::new("git")
+        .args(["rev-parse", "--git-common-dir"])
+        .current_dir(project_root)
+        .output()
+        .map_err(|e| format!("Failed to run git: {e}"))?;
+
+    if !output.status.success() {
+        return Err("Not a git repository".to_string());
+    }
+
+    let git_dir_raw = String::from_utf8_lossy(&output.stdout).trim().to_string();
+    let git_dir = if Path::new(&git_dir_raw).is_absolute() {
+        PathBuf::from(&git_dir_raw)
+    } else {
+        project_root.join(&git_dir_raw)
+    };
+    let hooks_dir = git_dir.join("hooks");
+
+    fs::create_dir_all(&hooks_dir).map_err(|e| format!("Failed to create hooks directory: {e}"))?;
+
+    let hook_path = hooks_dir.join("pre-commit");
+
+    // Skip if existing hook wasn't written by grove, unless force
+    if hook_path.exists() && !force {
+        let existing = fs::read_to_string(&hook_path)
+            .map_err(|e| format!("Failed to read existing pre-commit hook: {e}"))?;
+        if !existing.contains(PRECOMMIT_MARKER) {
+            return Ok(());
+        }
+    }
+
+    fs::write(&hook_path, PRECOMMIT_SCRIPT)
+        .map_err(|e| format!("Failed to write pre-commit hook: {e}"))?;
+
+    #[cfg(unix)]
+    {
+        use std::os::unix::fs::PermissionsExt;
+        fs::set_permissions(&hook_path, fs::Permissions::from_mode(0o755))
+            .map_err(|e| format!("Failed to set hook permissions: {e}"))?;
+    }
+
+    Ok(())
+}
+
+// ---------------------------------------------------------------------------
 // Install
 // ---------------------------------------------------------------------------
 
@@ -101,15 +168,12 @@ pub fn execute_install(
     project_override: Option<&Path>,
 ) -> Result<(), String> {
     let cwd = std::env::current_dir().map_err(|e| e.to_string())?;
-    let project_root =
-        resolve_project_root(&cwd, project_override).map_err(|e| e.to_string())?;
+    let project_root = resolve_project_root(&cwd, project_override).map_err(|e| e.to_string())?;
 
     // Read source hooks from .overstory/hooks.json
     let source_path = project_root.join(".overstory").join("hooks.json");
     if !source_path.exists() {
-        return Err(
-            "No hooks.json found in .overstory/. Run 'grove init' first.".to_string(),
-        );
+        return Err("No hooks.json found in .overstory/. Run 'grove init' first.".to_string());
     }
     let source_content =
         fs::read_to_string(&source_path).map_err(|e| format!("Failed to read hooks.json: {e}"))?;
@@ -163,6 +227,15 @@ pub fn execute_install(
     fs::write(&target_path, format!("{output_json}\n"))
         .map_err(|e| format!("Failed to write settings.local.json: {e}"))?;
 
+    // Install pre-commit conflict marker hook
+    match install_git_precommit_hook(&project_root, force) {
+        Ok(()) => {}
+        Err(e) => {
+            // Non-fatal: warn but don't fail the install
+            print_warning("Could not install pre-commit hook", Some(&e));
+        }
+    }
+
     if json {
         #[derive(serde::Serialize)]
         struct Out {
@@ -194,12 +267,14 @@ pub fn execute_install(
 /// Remove orchestrator hooks from `.claude/settings.local.json`.
 pub fn execute_uninstall(json: bool, project_override: Option<&Path>) -> Result<(), String> {
     let cwd = std::env::current_dir().map_err(|e| e.to_string())?;
-    let project_root =
-        resolve_project_root(&cwd, project_override).map_err(|e| e.to_string())?;
+    let project_root = resolve_project_root(&cwd, project_override).map_err(|e| e.to_string())?;
     let target_path = project_root.join(".claude").join("settings.local.json");
 
     if !target_path.exists() {
-        print_warning("No .claude/settings.local.json found", Some("nothing to uninstall"));
+        print_warning(
+            "No .claude/settings.local.json found",
+            Some("nothing to uninstall"),
+        );
         return Ok(());
     }
 
@@ -234,7 +309,10 @@ pub fn execute_uninstall(json: bool, project_override: Option<&Path>) -> Result<
         struct Out {
             uninstalled: bool,
         }
-        println!("{}", json_output("hooks-uninstall", &Out { uninstalled: true }));
+        println!(
+            "{}",
+            json_output("hooks-uninstall", &Out { uninstalled: true })
+        );
     } else {
         print_success("Removed hooks from settings.local.json", None);
     }
@@ -249,8 +327,7 @@ pub fn execute_uninstall(json: bool, project_override: Option<&Path>) -> Result<
 /// Show hooks installation status.
 pub fn execute_status(json: bool, project_override: Option<&Path>) -> Result<(), String> {
     let cwd = std::env::current_dir().map_err(|e| e.to_string())?;
-    let project_root =
-        resolve_project_root(&cwd, project_override).map_err(|e| e.to_string())?;
+    let project_root = resolve_project_root(&cwd, project_override).map_err(|e| e.to_string())?;
 
     let source_path = project_root.join(".overstory").join("hooks.json");
     let target_path = project_root.join(".claude").join("settings.local.json");
@@ -275,7 +352,13 @@ pub fn execute_status(json: bool, project_override: Option<&Path>) -> Result<(),
         }
         println!(
             "{}",
-            json_output("hooks-status", &Out { source_exists, installed })
+            json_output(
+                "hooks-status",
+                &Out {
+                    source_exists,
+                    installed
+                }
+            )
         );
     } else {
         println!(
@@ -330,7 +413,8 @@ mod tests {
 
     #[test]
     fn test_merge_hooks_by_event_type_no_duplicates() {
-        let entry = serde_json::json!([{"matcher":"","hooks":[{"type":"command","command":"foo"}]}]);
+        let entry =
+            serde_json::json!([{"matcher":"","hooks":[{"type":"command","command":"foo"}]}]);
         let mut existing: serde_json::Map<String, Value> = serde_json::Map::new();
         existing.insert("SessionStart".to_string(), entry.clone());
         let mut incoming: serde_json::Map<String, Value> = serde_json::Map::new();
@@ -344,8 +428,10 @@ mod tests {
 
     #[test]
     fn test_merge_hooks_by_event_type_appends_new() {
-        let entry_a = serde_json::json!([{"matcher":"","hooks":[{"type":"command","command":"cmd-a"}]}]);
-        let entry_b = serde_json::json!([{"matcher":"","hooks":[{"type":"command","command":"cmd-b"}]}]);
+        let entry_a =
+            serde_json::json!([{"matcher":"","hooks":[{"type":"command","command":"cmd-a"}]}]);
+        let entry_b =
+            serde_json::json!([{"matcher":"","hooks":[{"type":"command","command":"cmd-b"}]}]);
         let mut existing: serde_json::Map<String, Value> = serde_json::Map::new();
         existing.insert("SessionStart".to_string(), entry_a);
         let mut incoming: serde_json::Map<String, Value> = serde_json::Map::new();
@@ -506,5 +592,75 @@ mod tests {
         let a = serde_json::json!({"matcher":"Bash","hooks":[{"type":"command","command":"foo"}]});
         let b = serde_json::json!({"matcher":"","hooks":[{"type":"command","command":"foo"}]});
         assert!(!is_duplicate_entry(&a, &b));
+    }
+
+    fn git_init(dir: &Path) {
+        std::process::Command::new("git")
+            .args(["init"])
+            .current_dir(dir)
+            .output()
+            .expect("git init failed");
+    }
+
+    #[test]
+    fn test_install_git_precommit_hook_creates_file() {
+        let dir = TempDir::new().unwrap();
+        git_init(dir.path());
+
+        let result = install_git_precommit_hook(dir.path(), false);
+        assert!(result.is_ok(), "hook install failed: {result:?}");
+
+        let hook_path = dir.path().join(".git/hooks/pre-commit");
+        assert!(hook_path.exists());
+        let content = fs::read_to_string(&hook_path).unwrap();
+        assert!(content.contains("grove-conflict-marker-check"));
+        assert!(content.contains("<<<<<<< "));
+
+        // Verify it's executable
+        #[cfg(unix)]
+        {
+            use std::os::unix::fs::PermissionsExt;
+            let perms = fs::metadata(&hook_path).unwrap().permissions();
+            assert!(perms.mode() & 0o111 != 0, "hook should be executable");
+        }
+    }
+
+    #[test]
+    fn test_install_git_precommit_hook_skip_existing() {
+        let dir = TempDir::new().unwrap();
+        git_init(dir.path());
+
+        let hooks_dir = dir.path().join(".git/hooks");
+        fs::create_dir_all(&hooks_dir).unwrap();
+        let hook_path = hooks_dir.join("pre-commit");
+        // Write a hook NOT from grove
+        fs::write(&hook_path, "#!/bin/sh\n# custom hook\nexit 0\n").unwrap();
+
+        let result = install_git_precommit_hook(dir.path(), false);
+        assert!(result.is_ok());
+
+        // File should be unchanged (not overwritten)
+        let content = fs::read_to_string(&hook_path).unwrap();
+        assert!(content.contains("custom hook"));
+        assert!(!content.contains("grove-conflict-marker-check"));
+    }
+
+    #[test]
+    fn test_install_git_precommit_hook_force_overwrites() {
+        let dir = TempDir::new().unwrap();
+        git_init(dir.path());
+
+        let hooks_dir = dir.path().join(".git/hooks");
+        fs::create_dir_all(&hooks_dir).unwrap();
+        let hook_path = hooks_dir.join("pre-commit");
+        // Write a hook NOT from grove
+        fs::write(&hook_path, "#!/bin/sh\n# custom hook\nexit 0\n").unwrap();
+
+        let result = install_git_precommit_hook(dir.path(), true);
+        assert!(result.is_ok());
+
+        // File should be overwritten with grove hook
+        let content = fs::read_to_string(&hook_path).unwrap();
+        assert!(content.contains("grove-conflict-marker-check"));
     }
 }

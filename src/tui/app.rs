@@ -2,8 +2,8 @@
 
 use std::path::PathBuf;
 
-use ratatui::widgets::TableState;
 use crate::tui::widgets::toasts::Toast;
+use ratatui::widgets::TableState;
 
 use crate::db::events::EventStore;
 use crate::db::mail::MailStore;
@@ -11,8 +11,8 @@ use crate::db::merge_queue::MergeQueue;
 use crate::db::metrics::MetricsStore;
 use crate::db::sessions::{RunStore, SessionStore};
 use crate::types::{
-    AgentSession, AgentState, MailFilters, MailMessage, MergeEntry, MergeEntryStatus,
-    StoredEvent, TokenSnapshot,
+    AgentSession, AgentState, MailFilters, MailMessage, MergeEntry, MergeEntryStatus, StoredEvent,
+    TokenSnapshot,
 };
 
 // ---------------------------------------------------------------------------
@@ -261,7 +261,8 @@ impl App {
         }
         if let Ok(store) = EventStore::new(&path) {
             // Fetch new events since last cursor
-            if let Ok(new_events) = store.get_feed(None, None, Some(self.last_event_id), Some(200)) {
+            if let Ok(new_events) = store.get_feed(None, None, Some(self.last_event_id), Some(200))
+            {
                 if let Some(last) = new_events.last() {
                     self.last_event_id = last.id;
                 }
@@ -312,15 +313,13 @@ impl App {
                 self.metric_session_count = count;
             }
             // Try current run first, fall back to all data if empty
-            let mut snaps = store.get_latest_snapshots(self.run_id.as_deref())
+            let mut snaps = store
+                .get_latest_snapshots(self.run_id.as_deref())
                 .unwrap_or_default();
             if snaps.is_empty() {
                 snaps = store.get_latest_snapshots(None).unwrap_or_default();
             }
-            self.total_cost = snaps
-                .iter()
-                .filter_map(|s| s.estimated_cost_usd)
-                .sum();
+            self.total_cost = snaps.iter().filter_map(|s| s.estimated_cost_usd).sum();
             self.snapshots = snaps;
         }
     }
@@ -375,8 +374,11 @@ impl App {
         self.tick_count += 1;
 
         // Capture previous state for toast detection
-        let prev_states: Vec<(String, AgentState)> = self.sessions.iter()
-            .map(|s| (s.agent_name.clone(), s.state)).collect();
+        let prev_states: Vec<(String, AgentState)> = self
+            .sessions
+            .iter()
+            .map(|s| (s.agent_name.clone(), s.state))
+            .collect();
         let prev_mail_count = self.messages.len();
 
         // Sessions + events every tick (1s)
@@ -810,7 +812,10 @@ impl App {
             None => return,
         };
 
-        let thread_id = original.thread_id.clone().unwrap_or_else(|| original.id.clone());
+        let thread_id = original
+            .thread_id
+            .clone()
+            .unwrap_or_else(|| original.id.clone());
 
         let reply = InsertMailMessage {
             id: None,
@@ -917,11 +922,8 @@ impl App {
             }
         };
         self.selected_agent = Some(agent.clone());
-        self.terminal_lines = capture_agent_output(
-            &agent.tmux_session,
-            &agent.agent_name,
-            &self.project_root,
-        );
+        self.terminal_lines =
+            capture_agent_output(&agent.tmux_session, &agent.agent_name, &self.project_root);
         self.terminal_scroll = 0;
         self.terminal_fullscreen = false;
         self.current_view = View::Terminal;
@@ -971,7 +973,10 @@ impl App {
                     return false;
                 }
                 if !self.filter_text.is_empty() {
-                    return s.agent_name.to_lowercase().contains(&self.filter_text.to_lowercase());
+                    return s
+                        .agent_name
+                        .to_lowercase()
+                        .contains(&self.filter_text.to_lowercase());
                 }
                 true
             })
@@ -1069,8 +1074,7 @@ pub fn capture_agent_output(
             if let Some(latest) = subdirs.last() {
                 let stdout_log = latest.join("stdout.log");
                 if let Ok(content) = std::fs::read_to_string(&stdout_log) {
-                    let lines: Vec<String> =
-                        content.lines().map(|l| l.to_string()).collect();
+                    let lines: Vec<String> = content.lines().map(|l| l.to_string()).collect();
                     let start = lines.len().saturating_sub(100);
                     return lines[start..].to_vec();
                 }
@@ -1335,7 +1339,9 @@ mod tests {
     fn test_capture_agent_output_reads_log_file() {
         use std::fs;
         let dir = tempfile::TempDir::new().unwrap();
-        let log_dir = dir.path().join(".overstory/logs/test-agent/2024-01-01T00:00:00");
+        let log_dir = dir
+            .path()
+            .join(".overstory/logs/test-agent/2024-01-01T00:00:00");
         fs::create_dir_all(&log_dir).unwrap();
         fs::write(log_dir.join("stdout.log"), "line1\nline2\nline3\n").unwrap();
 
