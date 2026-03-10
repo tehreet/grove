@@ -41,7 +41,12 @@ impl AgentRuntime for ClaudeRuntime {
         )
     }
 
-    fn deploy_config(&self, worktree: &Path, overlay_content: &str, hooks: &HooksDef) -> Result<(), String> {
+    fn deploy_config(
+        &self,
+        worktree: &Path,
+        overlay_content: &str,
+        hooks: &HooksDef,
+    ) -> Result<(), String> {
         let claude_dir = worktree.join(".claude");
         fs::create_dir_all(&claude_dir)
             .map_err(|e| format!("Failed to create .claude dir: {e}"))?;
@@ -106,6 +111,62 @@ impl AgentRuntime for ClaudeRuntime {
     fn build_env(&self, model: &crate::types::ResolvedModel) -> HashMap<String, String> {
         model.env.clone().unwrap_or_default()
     }
+
+    fn build_print_command(&self, prompt: &str, model: Option<&str>) -> Vec<String> {
+        let mut cmd = vec!["claude".to_string(), "-p".to_string()];
+        if let Some(model) = model {
+            cmd.push("--model".to_string());
+            cmd.push(model.to_string());
+        }
+        cmd.push(prompt.to_string());
+        cmd
+    }
+
+    fn parse_transcript(&self, path: &Path) -> Option<crate::types::TranscriptSummary> {
+        let content = fs::read_to_string(path).ok()?;
+
+        let mut summary = crate::types::TranscriptSummary::default();
+        let mut found = false;
+
+        for line in content.lines() {
+            let line = line.trim();
+            if line.is_empty() {
+                continue;
+            }
+
+            let Ok(val) = serde_json::from_str::<serde_json::Value>(line) else {
+                continue;
+            };
+
+            if let Some(usage) = val.get("usage") {
+                found = true;
+                summary.input_tokens += usage
+                    .get("input_tokens")
+                    .and_then(serde_json::Value::as_u64)
+                    .unwrap_or(0);
+                summary.output_tokens += usage
+                    .get("output_tokens")
+                    .and_then(serde_json::Value::as_u64)
+                    .unwrap_or(0);
+                summary.cache_read_tokens += usage
+                    .get("cache_read_input_tokens")
+                    .and_then(serde_json::Value::as_u64)
+                    .unwrap_or(0);
+                summary.cache_write_tokens += usage
+                    .get("cache_creation_input_tokens")
+                    .and_then(serde_json::Value::as_u64)
+                    .unwrap_or(0);
+            }
+
+            if let Some(model) = val.get("model").and_then(serde_json::Value::as_str) {
+                if !model.is_empty() {
+                    summary.model = Some(model.to_string());
+                }
+            }
+        }
+
+        found.then_some(summary)
+    }
 }
 
 #[cfg(test)]
@@ -169,7 +230,9 @@ mod tests {
             worktree_path: dir.path().to_string_lossy().to_string(),
             quality_gates: None,
         };
-        ClaudeRuntime.deploy_config(dir.path(), "# overlay content", &hooks).unwrap();
+        ClaudeRuntime
+            .deploy_config(dir.path(), "# overlay content", &hooks)
+            .unwrap();
 
         let claude_md = dir.path().join(".claude/CLAUDE.md");
         assert!(claude_md.exists());
@@ -197,7 +260,10 @@ mod tests {
         ClaudeRuntime.deploy_config(dir.path(), "", &hooks).unwrap();
 
         let content = std::fs::read_to_string(claude_dir.join("CLAUDE.md")).unwrap();
-        assert_eq!(content, "# existing content", "Empty overlay should not overwrite existing CLAUDE.md");
+        assert_eq!(
+            content, "# existing content",
+            "Empty overlay should not overwrite existing CLAUDE.md"
+        );
     }
 
     #[test]
@@ -222,5 +288,43 @@ mod tests {
         };
         let env = ClaudeRuntime.build_env(&model);
         assert_eq!(env.get("ANTHROPIC_API_KEY").unwrap(), "sk-test");
+    }
+
+    #[test]
+    fn test_build_print_command_no_model() {
+        let cmd = ClaudeRuntime.build_print_command("hello world", None);
+        assert_eq!(cmd, vec!["claude", "-p", "hello world"]);
+    }
+
+    #[test]
+    fn test_build_print_command_with_model() {
+        let cmd = ClaudeRuntime.build_print_command("hello", Some("claude-sonnet-4-6"));
+        assert!(cmd.contains(&"--model".to_string()));
+        assert!(cmd.contains(&"claude-sonnet-4-6".to_string()));
+    }
+
+    #[test]
+    fn test_parse_transcript_empty_file() {
+        let dir = tempfile::tempdir().unwrap();
+        let path = dir.path().join("transcript.jsonl");
+        std::fs::write(&path, "").unwrap();
+        assert!(ClaudeRuntime.parse_transcript(&path).is_none());
+    }
+
+    #[test]
+    fn test_parse_transcript_with_usage() {
+        let dir = tempfile::tempdir().unwrap();
+        let path = dir.path().join("transcript.jsonl");
+        std::fs::write(
+            &path,
+            r#"{"type":"result","usage":{"input_tokens":100,"output_tokens":50,"cache_read_input_tokens":25,"cache_creation_input_tokens":10},"model":"claude-sonnet-4-6"}"#,
+        )
+        .unwrap();
+        let summary = ClaudeRuntime.parse_transcript(&path).unwrap();
+        assert_eq!(summary.input_tokens, 100);
+        assert_eq!(summary.output_tokens, 50);
+        assert_eq!(summary.cache_read_tokens, 25);
+        assert_eq!(summary.cache_write_tokens, 10);
+        assert_eq!(summary.model.as_deref(), Some("claude-sonnet-4-6"));
     }
 }

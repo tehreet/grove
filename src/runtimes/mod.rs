@@ -60,11 +60,30 @@ pub trait AgentRuntime: Send + Sync {
     fn build_interactive_command(&self, opts: &SpawnOpts) -> String;
 
     /// Deploy overlay + hooks config to worktree
-    fn deploy_config(&self, worktree: &Path, overlay_content: &str, hooks: &HooksDef) -> Result<(), String>;
+    fn deploy_config(
+        &self,
+        worktree: &Path,
+        overlay_content: &str,
+        hooks: &HooksDef,
+    ) -> Result<(), String>;
 
     /// Detect readiness from output content
     fn detect_ready(&self, pane_content: &str) -> ReadyState;
 
     /// Build environment variables for model/provider routing
     fn build_env(&self, model: &crate::types::ResolvedModel) -> HashMap<String, String>;
+
+    /// Build argv for a one-shot AI call (used by merge resolver + watchdog triage).
+    /// The returned vec is the full argv.
+    fn build_print_command(&self, prompt: &str, model: Option<&str>) -> Vec<String> {
+        let _ = (prompt, model);
+        Vec::new()
+    }
+
+    /// Parse a session transcript file and extract token usage.
+    /// Returns None if the file doesn't exist, can't be read, or format is unrecognized.
+    fn parse_transcript(&self, path: &std::path::Path) -> Option<crate::types::TranscriptSummary> {
+        let _ = path;
+        None
+    }
 }

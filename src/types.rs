@@ -53,6 +53,18 @@ pub struct ResolvedModel {
     pub is_explicit_override: Option<bool>,
 }
 
+/// Token usage summary extracted from an agent session transcript.
+#[derive(Debug, Clone, Serialize, Deserialize, Default)]
+#[serde(rename_all = "camelCase")]
+pub struct TranscriptSummary {
+    pub input_tokens: u64,
+    pub output_tokens: u64,
+    pub cache_read_tokens: u64,
+    pub cache_write_tokens: u64,
+    pub total_cost_usd: f64,
+    pub model: Option<String>,
+}
+
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct PiRuntimeConfig {
