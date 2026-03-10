@@ -470,26 +470,19 @@ mod tests {
     }
 
     #[test]
-    fn test_start_tier2_disabled() {
-        // Start should fail when tier2 is disabled (default config)
+    fn test_start_no_tier2_gate() {
+        // Start should not fail due to tier2_enabled config check
         let tmpdir = tempfile::tempdir().unwrap();
         let overstory_dir = tmpdir.path().join(".overstory");
         std::fs::create_dir_all(&overstory_dir).unwrap();
 
-        // Default config has tier2_enabled: false
         let result = execute_start(false, false, Some(tmpdir.path()));
-        assert!(result.is_err());
-        let msg = result.unwrap_err();
-        assert!(msg.contains("tier2") || msg.contains("Tier 2") || msg.contains("disabled"));
-    }
-
-    #[test]
-    fn test_start_tier2_disabled_json() {
-        let tmpdir = tempfile::tempdir().unwrap();
-        let overstory_dir = tmpdir.path().join(".overstory");
-        std::fs::create_dir_all(&overstory_dir).unwrap();
-
-        let result = execute_start(false, true, Some(tmpdir.path()));
-        assert!(result.is_err());
+        // If it errors, must NOT be about tier2
+        if let Err(ref msg) = result {
+            assert!(
+                !msg.contains("tier2") && !msg.contains("Tier 2") && !msg.contains("disabled"),
+                "Should not fail due to tier2 config, but got: {msg}"
+            );
+        }
     }
 }
