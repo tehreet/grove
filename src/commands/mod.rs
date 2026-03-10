@@ -1,5 +1,6 @@
 pub mod agents;
 pub mod clean;
+pub mod completions;
 pub mod coordinator;
 pub mod costs;
 pub mod doctor;
@@ -25,5 +26,7 @@ pub mod spec;
 pub mod status;
 pub mod stop;
 pub mod trace;
+pub mod update_cmd;
+pub mod upgrade_cmd;
 pub mod watch_cmd;
 pub mod worktree_cmd;

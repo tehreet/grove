@@ -20,11 +20,12 @@ mod types;
 mod watchdog;
 mod worktree;
 
-use clap::{Args, Parser, Subcommand};
+use clap::{Args, CommandFactory, Parser, Subcommand};
+use clap_complete::Shell;
 use logging::{brand_bold, muted, print_error, set_quiet};
 use std::path::PathBuf;
 
-const VERSION: &str = env!("CARGO_PKG_VERSION");
+const VERSION: &str = env!("GROVE_VERSION");
 
 /// All top-level command names — used for fuzzy suggestion on unknown input.
 const COMMANDS: &[&str] = &[
@@ -244,14 +245,14 @@ enum Commands {
     /// Run evaluations
     Eval(PassthroughArgs),
 
-    /// Update grove
-    Update(PassthroughArgs),
+    /// Refresh .overstory/ managed files from embedded defaults
+    Update(UpdateArgs),
 
-    /// Upgrade dependencies
-    Upgrade(PassthroughArgs),
+    /// Upgrade grove to the latest version
+    Upgrade(UpgradeArgs),
 
-    /// Generate shell completions
-    Completions(PassthroughArgs),
+    /// Generate shell completion scripts
+    Completions(CompletionsArgs),
 }
 
 // ---------------------------------------------------------------------------
@@ -1166,6 +1167,44 @@ struct CoordinatorLogsArgs {
     json: bool,
 }
 
+#[derive(Args)]
+struct UpdateArgs {
+    /// Refresh agent definition files only
+    #[arg(long)]
+    agents: bool,
+    /// Refresh agent-manifest.json only
+    #[arg(long)]
+    manifest: bool,
+    /// Refresh hooks.json only
+    #[arg(long)]
+    hooks: bool,
+    /// Show what would change without writing
+    #[arg(long)]
+    dry_run: bool,
+    /// Output as JSON
+    #[arg(long)]
+    json: bool,
+}
+
+#[derive(Args)]
+struct UpgradeArgs {
+    /// Check for updates without installing
+    #[arg(long)]
+    check: bool,
+    /// Upgrade all os-eco ecosystem tools as well
+    #[arg(long)]
+    all: bool,
+    /// Output as JSON
+    #[arg(long)]
+    json: bool,
+}
+
+#[derive(Args)]
+struct CompletionsArgs {
+    /// Shell to generate completions for (bash, zsh, fish, powershell, elvish)
+    shell: Shell,
+}
+
 // ---------------------------------------------------------------------------
 // Entry point
 // ---------------------------------------------------------------------------
@@ -1550,9 +1589,27 @@ fn run_command(
             project,
         ),
         Commands::Eval(_) => not_yet_implemented("eval", json),
-        Commands::Update(_) => not_yet_implemented("update", json),
-        Commands::Upgrade(_) => not_yet_implemented("upgrade", json),
-        Commands::Completions(_) => not_yet_implemented("completions", json),
+        Commands::Update(args) => commands::update_cmd::execute(
+            commands::update_cmd::UpdateOptions {
+                agents: args.agents,
+                manifest: args.manifest,
+                hooks: args.hooks,
+                dry_run: args.dry_run,
+                json: args.json || json,
+            },
+            project,
+        ),
+        Commands::Upgrade(args) => commands::upgrade_cmd::execute(
+            commands::upgrade_cmd::UpgradeOptions {
+                check: args.check,
+                all: args.all,
+                json: args.json || json,
+            },
+        ),
+        Commands::Completions(args) => {
+            let mut cmd = Cli::command();
+            commands::completions::execute(args.shell, &mut cmd)
+        }
     }
 }
 
