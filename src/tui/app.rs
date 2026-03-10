@@ -1015,27 +1015,23 @@ impl App {
 // Helpers
 // ---------------------------------------------------------------------------
 
-
-/// Capture agent output with fallback chain:
-/// 1. Try tmux capture-pane (backward compat with overstory agents)
-/// 2. If tmux fails or no session, read from .overstory/logs/<agent_name>/ (headless agents)
-/// 3. If no log file, show a "no output available" message
+/// Capture agent output from log files.
+///
+/// Fallback chain:
+/// 1. Read stdout.log from .overstory/logs/<agent>/<timestamp>/ (most recent subdir)
+/// 2. If stdout.log is absent or empty, fall back to stderr.log (Codex writes to stderr)
+/// 3. If neither exists, return a "no output available" message
 pub fn capture_agent_output(
     _session_name: &str,
     agent_name: &str,
     project_root: &str,
 ) -> Vec<String> {
-    // grove uses direct process spawning — read from log files, not tmux
-    // session_name parameter is kept for backward compat but ignored
-
-    // Read from .overstory/logs/<agent_name>/ — most recent subdir
     let log_base = std::path::Path::new(project_root)
         .join(".overstory")
         .join("logs")
         .join(agent_name);
 
     if log_base.is_dir() {
-        // Subdirectories are timestamp-named; sort alphabetically to get most recent
         if let Ok(entries) = std::fs::read_dir(&log_base) {
             let mut subdirs: Vec<std::path::PathBuf> = entries
                 .flatten()
@@ -1045,17 +1041,29 @@ pub fn capture_agent_output(
             subdirs.sort();
 
             if let Some(latest) = subdirs.last() {
+                // Try stdout.log first
                 let stdout_log = latest.join("stdout.log");
                 if let Ok(content) = std::fs::read_to_string(&stdout_log) {
-                    let lines: Vec<String> = content.lines().map(|l| l.to_string()).collect();
-                    let start = lines.len().saturating_sub(100);
-                    return lines[start..].to_vec();
+                    if !content.trim().is_empty() {
+                        let lines: Vec<String> = content.lines().map(|l| l.to_string()).collect();
+                        let start = lines.len().saturating_sub(100);
+                        return lines[start..].to_vec();
+                    }
+                }
+
+                // Fall back to stderr.log (Codex and some other runtimes write here)
+                let stderr_log = latest.join("stderr.log");
+                if let Ok(content) = std::fs::read_to_string(&stderr_log) {
+                    if !content.trim().is_empty() {
+                        let lines: Vec<String> = content.lines().map(|l| l.to_string()).collect();
+                        let start = lines.len().saturating_sub(100);
+                        return lines[start..].to_vec();
+                    }
                 }
             }
         }
     }
 
-    // 3. Nothing available
     vec!["(no output available — agent log file not found)".to_string()]
 }
 
@@ -1309,7 +1317,7 @@ mod tests {
     }
 
     #[test]
-    fn test_capture_agent_output_reads_log_file() {
+    fn test_capture_agent_output_reads_stdout_log() {
         use std::fs;
         let dir = tempfile::TempDir::new().unwrap();
         let log_dir = dir
@@ -1320,5 +1328,36 @@ mod tests {
 
         let lines = capture_agent_output("", "test-agent", dir.path().to_str().unwrap());
         assert_eq!(lines, vec!["line1", "line2", "line3"]);
+    }
+
+    #[test]
+    fn test_capture_agent_output_falls_back_to_stderr() {
+        use std::fs;
+        let dir = tempfile::TempDir::new().unwrap();
+        let log_dir = dir
+            .path()
+            .join(".overstory/logs/codex-agent/2024-01-01T00:00:00");
+        fs::create_dir_all(&log_dir).unwrap();
+        // stdout.log is empty (as Codex produces), stderr.log has content
+        fs::write(log_dir.join("stdout.log"), "").unwrap();
+        fs::write(log_dir.join("stderr.log"), "codex output\nmore output\n").unwrap();
+
+        let lines = capture_agent_output("", "codex-agent", dir.path().to_str().unwrap());
+        assert_eq!(lines, vec!["codex output", "more output"]);
+    }
+
+    #[test]
+    fn test_capture_agent_output_prefers_stdout_when_both_exist() {
+        use std::fs;
+        let dir = tempfile::TempDir::new().unwrap();
+        let log_dir = dir
+            .path()
+            .join(".overstory/logs/mixed-agent/2024-01-01T00:00:00");
+        fs::create_dir_all(&log_dir).unwrap();
+        fs::write(log_dir.join("stdout.log"), "stdout content\n").unwrap();
+        fs::write(log_dir.join("stderr.log"), "stderr content\n").unwrap();
+
+        let lines = capture_agent_output("", "mixed-agent", dir.path().to_str().unwrap());
+        assert_eq!(lines, vec!["stdout content"]);
     }
 }
