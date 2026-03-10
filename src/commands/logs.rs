@@ -109,9 +109,10 @@ fn level_abbrev(level: &EventLevel) -> &'static str {
 }
 
 fn event_type_str(et: &crate::types::EventType) -> String {
+    // Display with dot notation to match overstory format (tool.start, session.end, etc.)
     serde_json::to_value(et)
         .ok()
-        .and_then(|v| v.as_str().map(|s| s.to_string()))
+        .and_then(|v| v.as_str().map(|s| s.replace('_', ".").to_string()))
         .unwrap_or_else(|| format!("{et:?}"))
 }
 

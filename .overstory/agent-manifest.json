@@ -1,210 +1,210 @@
 {
-	"version": "1.0",
-	"agents": {
-		"scout": {
-			"file": "scout.md",
-			"model": "haiku",
-			"tools": [
-				"Read",
-				"Glob",
-				"Grep",
-				"Bash"
-			],
-			"capabilities": [
-				"explore",
-				"research"
-			],
-			"canSpawn": false,
-			"constraints": [
-				"read-only"
-			]
-		},
-		"builder": {
-			"file": "builder.md",
-			"model": "sonnet",
-			"tools": [
-				"Read",
-				"Write",
-				"Edit",
-				"Glob",
-				"Grep",
-				"Bash"
-			],
-			"capabilities": [
-				"implement",
-				"refactor",
-				"fix"
-			],
-			"canSpawn": false,
-			"constraints": []
-		},
-		"reviewer": {
-			"file": "reviewer.md",
-			"model": "sonnet",
-			"tools": [
-				"Read",
-				"Glob",
-				"Grep",
-				"Bash"
-			],
-			"capabilities": [
-				"review",
-				"validate"
-			],
-			"canSpawn": false,
-			"constraints": [
-				"read-only"
-			]
-		},
-		"lead": {
-			"file": "lead.md",
-			"model": "opus",
-			"tools": [
-				"Read",
-				"Write",
-				"Edit",
-				"Glob",
-				"Grep",
-				"Bash",
-				"Task"
-			],
-			"capabilities": [
-				"coordinate",
-				"implement",
-				"review"
-			],
-			"canSpawn": true,
-			"constraints": []
-		},
-		"merger": {
-			"file": "merger.md",
-			"model": "sonnet",
-			"tools": [
-				"Read",
-				"Write",
-				"Edit",
-				"Glob",
-				"Grep",
-				"Bash"
-			],
-			"capabilities": [
-				"merge",
-				"resolve-conflicts"
-			],
-			"canSpawn": false,
-			"constraints": []
-		},
-		"coordinator": {
-			"file": "coordinator.md",
-			"model": "opus",
-			"tools": [
-				"Read",
-				"Glob",
-				"Grep",
-				"Bash"
-			],
-			"capabilities": [
-				"coordinate",
-				"dispatch",
-				"escalate"
-			],
-			"canSpawn": true,
-			"constraints": [
-				"read-only",
-				"no-worktree"
-			]
-		},
-		"monitor": {
-			"file": "monitor.md",
-			"model": "sonnet",
-			"tools": [
-				"Read",
-				"Glob",
-				"Grep",
-				"Bash"
-			],
-			"capabilities": [
-				"monitor",
-				"patrol"
-			],
-			"canSpawn": false,
-			"constraints": [
-				"read-only",
-				"no-worktree"
-			]
-		},
-		"verifier": {
-			"file": "verifier.md",
-			"model": "sonnet",
-			"tools": [
-				"Read",
-				"Glob",
-				"Grep",
-				"Bash"
-			],
-			"capabilities": [
-				"verification",
-				"browser-testing"
-			],
-			"canSpawn": false,
-			"constraints": [
-				"READ_ONLY: Cannot modify files",
-				"Must use --session flag for browser isolation",
-				"Must clean up browser session on exit"
-			]
-		}
-	},
-	"capabilityIndex": {
-		"explore": [
-			"scout"
-		],
-		"research": [
-			"scout"
-		],
-		"implement": [
-			"builder",
-			"lead"
-		],
-		"refactor": [
-			"builder"
-		],
-		"fix": [
-			"builder"
-		],
-		"review": [
-			"reviewer",
-			"lead"
-		],
-		"validate": [
-			"reviewer"
-		],
-		"coordinate": [
-			"lead",
-			"coordinator"
-		],
-		"merge": [
-			"merger"
-		],
-		"resolve-conflicts": [
-			"merger"
-		],
-		"dispatch": [
-			"coordinator"
-		],
-		"escalate": [
-			"coordinator"
-		],
-		"monitor": [
-			"monitor"
-		],
-		"patrol": [
-			"monitor"
-		],
-		"verification": [
-			"verifier"
-		],
-		"browser-testing": [
-			"verifier"
-		]
-	}
+  "version": "1.0",
+  "agents": {
+    "reviewer": {
+      "file": "reviewer.md",
+      "model": "sonnet",
+      "tools": [
+        "Read",
+        "Glob",
+        "Grep",
+        "Bash"
+      ],
+      "capabilities": [
+        "review",
+        "validate"
+      ],
+      "canSpawn": false,
+      "constraints": [
+        "read-only"
+      ]
+    },
+    "verifier": {
+      "file": "verifier.md",
+      "model": "sonnet",
+      "tools": [
+        "Read",
+        "Glob",
+        "Grep",
+        "Bash"
+      ],
+      "capabilities": [
+        "verification",
+        "browser-testing"
+      ],
+      "canSpawn": false,
+      "constraints": [
+        "READ_ONLY: Cannot modify files",
+        "Must use --session flag for browser isolation",
+        "Must clean up browser session on exit"
+      ]
+    },
+    "lead": {
+      "file": "lead.md",
+      "model": "opus",
+      "tools": [
+        "Read",
+        "Write",
+        "Edit",
+        "Glob",
+        "Grep",
+        "Bash",
+        "Task"
+      ],
+      "capabilities": [
+        "coordinate",
+        "implement",
+        "review"
+      ],
+      "canSpawn": true,
+      "constraints": []
+    },
+    "builder": {
+      "file": "builder.md",
+      "model": "sonnet",
+      "tools": [
+        "Read",
+        "Write",
+        "Edit",
+        "Glob",
+        "Grep",
+        "Bash"
+      ],
+      "capabilities": [
+        "implement",
+        "refactor",
+        "fix"
+      ],
+      "canSpawn": false,
+      "constraints": []
+    },
+    "merger": {
+      "file": "merger.md",
+      "model": "sonnet",
+      "tools": [
+        "Read",
+        "Write",
+        "Edit",
+        "Glob",
+        "Grep",
+        "Bash"
+      ],
+      "capabilities": [
+        "merge",
+        "resolve-conflicts"
+      ],
+      "canSpawn": false,
+      "constraints": []
+    },
+    "monitor": {
+      "file": "monitor.md",
+      "model": "sonnet",
+      "tools": [
+        "Read",
+        "Glob",
+        "Grep",
+        "Bash"
+      ],
+      "capabilities": [
+        "monitor",
+        "patrol"
+      ],
+      "canSpawn": false,
+      "constraints": [
+        "read-only",
+        "no-worktree"
+      ]
+    },
+    "scout": {
+      "file": "scout.md",
+      "model": "haiku",
+      "tools": [
+        "Read",
+        "Glob",
+        "Grep",
+        "Bash"
+      ],
+      "capabilities": [
+        "explore",
+        "research"
+      ],
+      "canSpawn": false,
+      "constraints": [
+        "read-only"
+      ]
+    },
+    "coordinator": {
+      "file": "coordinator.md",
+      "model": "opus",
+      "tools": [
+        "Read",
+        "Glob",
+        "Grep",
+        "Bash"
+      ],
+      "capabilities": [
+        "coordinate",
+        "dispatch",
+        "escalate"
+      ],
+      "canSpawn": true,
+      "constraints": [
+        "read-only",
+        "no-worktree"
+      ]
+    }
+  },
+  "capabilityIndex": {
+    "patrol": [
+      "monitor"
+    ],
+    "escalate": [
+      "coordinator"
+    ],
+    "verification": [
+      "verifier"
+    ],
+    "resolve-conflicts": [
+      "merger"
+    ],
+    "fix": [
+      "builder"
+    ],
+    "coordinate": [
+      "lead",
+      "coordinator"
+    ],
+    "explore": [
+      "scout"
+    ],
+    "review": [
+      "reviewer",
+      "lead"
+    ],
+    "implement": [
+      "lead",
+      "builder"
+    ],
+    "browser-testing": [
+      "verifier"
+    ],
+    "dispatch": [
+      "coordinator"
+    ],
+    "validate": [
+      "reviewer"
+    ],
+    "merge": [
+      "merger"
+    ],
+    "refactor": [
+      "builder"
+    ],
+    "monitor": [
+      "monitor"
+    ],
+    "research": [
+      "scout"
+    ]
+  }
 }

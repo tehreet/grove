@@ -28,16 +28,27 @@ Download the latest release for your platform from [GitHub Releases](https://git
 
 ```sh
 # Initialize a project
-grove init
+cd my-project && grove init
 
-# Dispatch a task to an agent
-grove sling --agent builder --task "Build the login page"
+# Write a task spec
+grove spec write login-page --body "Build the login page with OAuth support"
+
+# Dispatch a builder agent
+grove sling login-page --capability builder --name login-builder \
+  --spec .overstory/specs/login-page.md --files src/auth/
 
 # Check agent status
 grove status
 
 # Open the TUI dashboard
 grove dashboard
+
+# Send mail to an agent
+grove mail send --to login-builder --from operator --subject "Priority change" \
+  --body "Focus on Google OAuth first"
+
+# View costs
+grove costs
 ```
 
 ## Why Rust?
@@ -96,6 +107,21 @@ Key decisions:
 - **Coordinator is a Rust event loop, not an LLM.** LLM called only for task decomposition.
 - **Typed merge outcomes.** `MergeOutcome::ContentDisplaced` fixes overstory's silent content-drop bug.
 - **WAL mode SQLite.** Multiple processes read/write concurrently without locking.
+
+## Status
+
+Grove v0.1.0 is feature-complete and interoperates with overstory — it reads and writes the same `.overstory/` databases. You can use `grove` commands alongside `ov` commands on the same project.
+
+**What works today:**
+- All 35 commands (status, sling, mail, coordinator, dashboard, etc.)
+- TUI dashboard with agent cards, cost analytics, timeline, live terminal viewer
+- Full database interop with overstory
+- Shell completions, self-update, install script
+
+**What's in progress:**
+- Native agent spawning without tmux (grove currently delegates to overstory's tmux-based spawning)
+- Coordinator driving multi-agent builds end-to-end (currently uses overstory's LLM coordinator)
+- The `eval` command
 
 ## License
 

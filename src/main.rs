@@ -242,7 +242,8 @@ enum Commands {
     /// Show session metrics
     Metrics(MetricsArgs),
 
-    /// Run evaluations
+    /// Run evaluations (coming soon)
+    #[command(hide = true)]
     Eval(PassthroughArgs),
 
     /// Refresh .overstory/ managed files from embedded defaults

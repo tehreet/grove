@@ -1,91 +1,91 @@
 {
 	"hooks": {
-		"SessionStart": [
-			{
-				"matcher": "",
-				"hooks": [
-					{
-						"type": "command",
-						"command": "ov prime --agent orchestrator"
-					}
-				]
-			}
-		],
-		"UserPromptSubmit": [
-			{
-				"matcher": "",
-				"hooks": [
-					{
-						"type": "command",
-						"command": "ov mail check --inject --agent orchestrator"
-					}
-				]
-			}
-		],
-		"PreToolUse": [
-			{
-				"matcher": "Bash",
-				"hooks": [
-					{
-						"type": "command",
-						"command": "read -r INPUT; CMD=$(echo \"$INPUT\" | sed 's/.*\"command\": *\"\\([^\"]*\\)\".*/\\1/'); if echo \"$CMD\" | grep -qE '\\bgit\\s+push\\b'; then echo '{\"decision\":\"block\",\"reason\":\"git push is blocked by overstory — merge locally, push manually when ready\"}'; exit 0; fi;"
-					}
-				]
-			},
-			{
-				"matcher": "",
-				"hooks": [
-					{
-						"type": "command",
-						"command": "read -r INPUT; TOOL_NAME=$(echo \"$INPUT\" | sed 's/.*\"tool_name\": *\"\\([^\"]*\\)\".*/\\1/'); ov log tool-start --agent orchestrator --tool-name \"$TOOL_NAME\""
-					}
-				]
-			}
-		],
 		"PostToolUse": [
 			{
-				"matcher": "",
 				"hooks": [
 					{
-						"type": "command",
-						"command": "read -r INPUT; TOOL_NAME=$(echo \"$INPUT\" | sed 's/.*\"tool_name\": *\"\\([^\"]*\\)\".*/\\1/'); ov log tool-end --agent orchestrator --tool-name \"$TOOL_NAME\""
+						"command": "read -r INPUT; TOOL_NAME=$(echo \"$INPUT\" | sed 's/.*\"tool_name\": *\"\\([^\"]*\\)\".*/\\1/'); ov log tool-end --agent orchestrator --tool-name \"$TOOL_NAME\"",
+						"type": "command"
 					}
-				]
+				],
+				"matcher": ""
 			},
 			{
-				"matcher": "Bash",
 				"hooks": [
 					{
-						"type": "command",
-						"command": "read -r INPUT; if echo \"$INPUT\" | grep -q 'git commit'; then mulch diff HEAD~1 2>/dev/null || true; fi"
+						"command": "read -r INPUT; if echo \"$INPUT\" | grep -q 'git commit'; then mulch diff HEAD~1 2>/dev/null || true; fi",
+						"type": "command"
 					}
-				]
-			}
-		],
-		"Stop": [
-			{
-				"matcher": "",
-				"hooks": [
-					{
-						"type": "command",
-						"command": "ov log session-end --agent orchestrator"
-					},
-					{
-						"type": "command",
-						"command": "mulch learn"
-					}
-				]
+				],
+				"matcher": "Bash"
 			}
 		],
 		"PreCompact": [
 			{
-				"matcher": "",
 				"hooks": [
 					{
-						"type": "command",
-						"command": "ov prime --agent orchestrator --compact"
+						"command": "ov prime --agent orchestrator --compact",
+						"type": "command"
 					}
-				]
+				],
+				"matcher": ""
+			}
+		],
+		"PreToolUse": [
+			{
+				"hooks": [
+					{
+						"command": "read -r INPUT; CMD=$(echo \"$INPUT\" | sed 's/.*\"command\": *\"\\([^\"]*\\)\".*/\\1/'); if echo \"$CMD\" | grep -qE '\\bgit\\s+push\\b'; then echo '{\"decision\":\"block\",\"reason\":\"git push is blocked by overstory \\u2014 merge locally, push manually when ready\"}'; exit 0; fi;",
+						"type": "command"
+					}
+				],
+				"matcher": "Bash"
+			},
+			{
+				"hooks": [
+					{
+						"command": "read -r INPUT; TOOL_NAME=$(echo \"$INPUT\" | sed 's/.*\"tool_name\": *\"\\([^\"]*\\)\".*/\\1/'); ov log tool-start --agent orchestrator --tool-name \"$TOOL_NAME\"",
+						"type": "command"
+					}
+				],
+				"matcher": ""
+			}
+		],
+		"SessionStart": [
+			{
+				"hooks": [
+					{
+						"command": "ov prime --agent orchestrator",
+						"type": "command"
+					}
+				],
+				"matcher": ""
+			}
+		],
+		"Stop": [
+			{
+				"hooks": [
+					{
+						"command": "ov log session-end --agent orchestrator",
+						"type": "command"
+					},
+					{
+						"command": "mulch learn",
+						"type": "command"
+					}
+				],
+				"matcher": ""
+			}
+		],
+		"UserPromptSubmit": [
+			{
+				"hooks": [
+					{
+						"command": "ov mail check --inject --agent orchestrator",
+						"type": "command"
+					}
+				],
+				"matcher": ""
 			}
 		]
 	}
