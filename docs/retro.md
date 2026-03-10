@@ -447,3 +447,28 @@ fi
 5. **Dedicated Hetzner box** — 8 dedicated cores handled 4 parallel cargo builds without the load issues from RETRO-006
 
 **Lesson:** The multi-agent pattern works well when: (a) each builder owns distinct files, (b) one builder owns all shared integration points, (c) the spec is complete before dispatch, (d) the hardware can handle parallel compilation. Replicate this pattern for all future phases.
+
+---
+
+### RETRO-031: Headless spawning works — grove's architecture is proven
+
+**What happened:** `grove sling headless-test --headless` spawned a Claude Code agent as a direct child process (PID 600309). No tmux session was created. The agent read its overlay from `.claude/CLAUDE.md`, created `HEADLESS_PROOF.md` with "Grove spawned me without tmux", committed it to the branch, and exited. The entire lifecycle worked end-to-end.
+
+**What didn't work:**
+- Session state stuck at `booting` — the headless path doesn't call `grove log session-start/end`, so the state machine never transitions. Need to add lifecycle hooks to the headless spawn path.
+- No agent log file was written to `.overstory/logs/`. The headless stdout capture either isn't wired to a log file or the agent's output went elsewhere.
+- Status showed the agent as still running after it exited — no process death detection in the headless path.
+
+**What this proves:**
+- grove CAN spawn agents without tmux
+- The overlay template rendering works (agent found and read CLAUDE.md)
+- The worktree/branch creation works
+- The agent can commit to its branch
+- The single-binary-no-tmux architecture is viable
+
+**Remaining work for production-ready headless spawning:**
+1. Wire `log session-start` when the child process starts (detect first stdout)
+2. Wire `log session-end` when the child process exits (detect wait/exit)
+3. Write stdout to `.overstory/logs/<agent>.log` for the TUI terminal viewer
+4. Detect process death and update session state to completed/zombie
+5. The watchdog should monitor headless PIDs the same way it monitors tmux sessions
