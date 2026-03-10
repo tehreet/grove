@@ -10,7 +10,7 @@ use ratatui::{
 
 use crate::tui::app::{App, Focus};
 use crate::tui::theme::{
-    focused_block, unfocused_block, ACCENT_AMBER, BRAND_GREEN, MUTED_GRAY,
+    focused_block, unfocused_block, ACCENT_ORANGE, BRAND_PRIMARY, MUTED_GRAY,
 };
 
 pub fn render(f: &mut Frame, app: &App, area: Rect) {
@@ -44,7 +44,7 @@ pub fn render(f: &mut Frame, app: &App, area: Rect) {
         .iter()
         .map(|msg| {
             let unread_dot = if !msg.read {
-                Span::styled("● ", Style::default().fg(ACCENT_AMBER).add_modifier(Modifier::BOLD))
+                Span::styled("● ", Style::default().fg(ACCENT_ORANGE).add_modifier(Modifier::BOLD))
             } else {
                 Span::styled("  ", Style::default())
             };
@@ -58,7 +58,7 @@ pub fn render(f: &mut Frame, app: &App, area: Rect) {
                 unread_dot,
                 Span::styled(
                     from_to,
-                    Style::default().fg(BRAND_GREEN),
+                    Style::default().fg(BRAND_PRIMARY),
                 ),
                 Span::styled(subject, Style::default()),
                 Span::styled(

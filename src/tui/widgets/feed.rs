@@ -9,7 +9,7 @@ use ratatui::{
 };
 
 use crate::tui::app::{App, Focus};
-use crate::tui::theme::{focused_block, unfocused_block, MUTED_GRAY};
+use crate::tui::theme::{focused_block, unfocused_block, MUTED_GRAY, TEXT_PRIMARY};
 use crate::types::{EventType, StoredEvent};
 
 pub fn render(f: &mut Frame, app: &App, area: Rect) {
@@ -77,7 +77,7 @@ pub fn render(f: &mut Frame, app: &App, area: Rect) {
                         .fg(agent_color)
                         .add_modifier(Modifier::BOLD),
                 ),
-                Span::styled(tool_part, Style::default().fg(Color::White)),
+                Span::styled(tool_part, Style::default().fg(TEXT_PRIMARY)),
             ]);
 
             ListItem::new(line)
@@ -96,17 +96,17 @@ pub fn render(f: &mut Frame, app: &App, area: Rect) {
     f.render_widget(list, area);
 }
 
-/// Deterministic color per agent name.
+/// Deterministic color per agent name (Dracula-derived palette).
 fn agent_color_for(name: &str) -> Color {
     let palette = [
-        Color::Rgb(100, 180, 255), // light blue
-        Color::Rgb(180, 255, 100), // lime
-        Color::Rgb(255, 180, 100), // orange
-        Color::Rgb(180, 100, 255), // purple
-        Color::Rgb(100, 255, 180), // mint
-        Color::Rgb(255, 100, 180), // pink
-        Color::Rgb(255, 220, 100), // yellow
-        Color::Rgb(100, 220, 255), // cyan
+        Color::Rgb(139, 233, 253), // cyan
+        Color::Rgb(80, 250, 123),  // green
+        Color::Rgb(255, 184, 108), // orange
+        Color::Rgb(189, 147, 249), // purple
+        Color::Rgb(241, 250, 140), // yellow
+        Color::Rgb(255, 85, 170),  // pink
+        Color::Rgb(255, 85, 85),   // red
+        Color::Rgb(248, 248, 242), // foreground
     ];
     let hash: usize = name.bytes().fold(0usize, |acc, b| acc.wrapping_add(b as usize));
     palette[hash % palette.len()]

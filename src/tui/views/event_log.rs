@@ -11,7 +11,7 @@ use ratatui::{
 use crate::types::EventType;
 
 use crate::tui::app::App;
-use crate::tui::theme::{BORDER_FOCUSED, MUTED_GRAY};
+use crate::tui::theme::{BORDER_FOCUSED, MUTED_GRAY, TEXT_PRIMARY};
 use crate::tui::widgets::status_bar;
 
 pub fn render(f: &mut Frame, app: &mut App) {
@@ -71,7 +71,7 @@ fn render_event_list(f: &mut Frame, app: &mut App, area: Rect) {
                 ),
                 Span::styled(
                     format!("{:<10} ", truncate(tool, 10)),
-                    Style::default().fg(Color::White),
+                    Style::default().fg(TEXT_PRIMARY),
                 ),
                 Span::styled(
                     format!("{}{}", args, dur),

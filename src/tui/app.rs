@@ -26,6 +26,15 @@ pub enum View {
     Terminal,
     SplitTerminal,
     MailReader,
+    CostAnalytics,
+    Timeline,
+}
+
+#[allow(dead_code)]
+pub struct Toast {
+    pub message: String,
+    pub color: ratatui::style::Color,
+    pub created: std::time::Instant,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -113,6 +122,9 @@ pub struct App {
     pub split_agents: Vec<AgentSession>,
     pub split_lines: Vec<Vec<String>>,
     pub split_focus: usize,
+
+    // Toast notifications
+    pub toasts: Vec<Toast>,
 }
 
 impl App {
@@ -166,6 +178,8 @@ impl App {
             split_agents: vec![],
             split_lines: vec![],
             split_focus: 0,
+
+            toasts: vec![],
         }
     }
 
@@ -356,15 +370,54 @@ impl App {
     // -----------------------------------------------------------------------
 
     pub fn tick(&mut self) {
+        // Expire old toasts
+        self.toasts.retain(|t| t.created.elapsed().as_secs() < 3);
+
         self.tick_count += 1;
+
+        // Capture previous state for toast detection
+        let prev_states: Vec<(String, AgentState)> = self.sessions.iter()
+            .map(|s| (s.agent_name.clone(), s.state)).collect();
+        let prev_mail_count = self.messages.len();
 
         // Sessions + events every tick (1s)
         self.refresh_sessions();
         self.refresh_events();
 
+        // Toast detection: agent state changes
+        for (name, old_state) in &prev_states {
+            if let Some(session) = self.sessions.iter().find(|s| &s.agent_name == name) {
+                if old_state != &session.state {
+                    match session.state {
+                        AgentState::Completed => self.toasts.push(Toast {
+                            message: format!("✔ {} completed", name),
+                            color: crate::tui::theme::ACCENT_GREEN,
+                            created: std::time::Instant::now(),
+                        }),
+                        AgentState::Zombie => self.toasts.push(Toast {
+                            message: format!("☠ {} died", name),
+                            color: crate::tui::theme::ACCENT_RED,
+                            created: std::time::Instant::now(),
+                        }),
+                        _ => {}
+                    }
+                }
+            }
+        }
+
         // Mail every 2s
         if self.tick_count.is_multiple_of(2) {
             self.refresh_mail();
+            // Toast detection: new mail
+            if self.messages.len() > prev_mail_count {
+                if let Some(msg) = self.messages.first() {
+                    self.toasts.push(Toast {
+                        message: format!("✉ mail from {}", msg.from),
+                        color: crate::tui::theme::ACCENT_PURPLE,
+                        created: std::time::Instant::now(),
+                    });
+                }
+            }
         }
 
         // Merge + metrics every 5s
@@ -443,6 +496,8 @@ impl App {
             View::Terminal => self.handle_key_terminal(key),
             View::SplitTerminal => self.handle_key_split_terminal(key),
             View::MailReader => self.handle_key_mail_reader(key),
+            View::CostAnalytics => self.handle_key_cost_analytics(key),
+            View::Timeline => self.handle_key_timeline(key),
         }
     }
 
@@ -468,7 +523,8 @@ impl App {
                 self.current_view = View::EventLog;
                 self.event_log_scroll = self.events.len().saturating_sub(1);
             }
-            KeyCode::Char('3') => self.show_help = true,
+            KeyCode::Char('4') | KeyCode::Char('$') => self.current_view = View::CostAnalytics,
+            KeyCode::Char('5') => self.current_view = View::Timeline,
             KeyCode::Up | KeyCode::Char('k') => self.scroll_up(),
             KeyCode::Down | KeyCode::Char('j') => self.scroll_down(),
             KeyCode::Enter => {
@@ -612,6 +668,28 @@ impl App {
             KeyCode::Char('g') => {
                 self.event_log_scroll = 0;
             }
+            _ => {}
+        }
+    }
+
+    fn handle_key_cost_analytics(&mut self, key: crossterm::event::KeyEvent) {
+        use crossterm::event::KeyCode;
+        match key.code {
+            KeyCode::Esc => self.current_view = View::Overview,
+            KeyCode::Char('q') => self.running = false,
+            KeyCode::Up | KeyCode::Char('k') => { /* scroll if needed */ }
+            KeyCode::Down | KeyCode::Char('j') => { /* scroll if needed */ }
+            _ => {}
+        }
+    }
+
+    fn handle_key_timeline(&mut self, key: crossterm::event::KeyEvent) {
+        use crossterm::event::KeyCode;
+        match key.code {
+            KeyCode::Esc => self.current_view = View::Overview,
+            KeyCode::Char('q') => self.running = false,
+            KeyCode::Up | KeyCode::Char('k') => { /* scroll if needed */ }
+            KeyCode::Down | KeyCode::Char('j') => { /* scroll if needed */ }
             _ => {}
         }
     }

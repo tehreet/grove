@@ -10,7 +10,7 @@ use ratatui::{
 
 use crate::tui::app::App;
 use crate::tui::theme::{
-    ACCENT_AMBER, BORDER_FOCUSED, BORDER_UNFOCUSED, BRAND_GREEN, MUTED_GRAY,
+    ACCENT_ORANGE, BORDER_FOCUSED, BORDER_UNFOCUSED, BRAND_PRIMARY, MUTED_GRAY,
 };
 use crate::types::MailMessage;
 
@@ -46,7 +46,7 @@ pub fn render(f: &mut Frame, app: &App) {
 fn render_header(f: &mut Frame, msg: &MailMessage, area: Rect) {
     let line = Line::from(vec![
         Span::styled(" ← ", Style::default().fg(MUTED_GRAY)),
-        Span::styled(&msg.subject, Style::default().fg(ACCENT_AMBER).add_modifier(Modifier::BOLD)),
+        Span::styled(&msg.subject, Style::default().fg(ACCENT_ORANGE).add_modifier(Modifier::BOLD)),
     ]);
     f.render_widget(Paragraph::new(line), area);
 }
@@ -59,15 +59,15 @@ fn render_meta(f: &mut Frame, msg: &MailMessage, area: Rect) {
     let lines = vec![
         Line::from(vec![
             Span::styled("  From:     ", Style::default().fg(MUTED_GRAY)),
-            Span::styled(&msg.from, Style::default().fg(BRAND_GREEN)),
+            Span::styled(&msg.from, Style::default().fg(BRAND_PRIMARY)),
         ]),
         Line::from(vec![
             Span::styled("  To:       ", Style::default().fg(MUTED_GRAY)),
-            Span::styled(&msg.to, Style::default().fg(BRAND_GREEN)),
+            Span::styled(&msg.to, Style::default().fg(BRAND_PRIMARY)),
         ]),
         Line::from(vec![
             Span::styled("  Type:     ", Style::default().fg(MUTED_GRAY)),
-            Span::styled(&type_str, Style::default().fg(ACCENT_AMBER)),
+            Span::styled(&type_str, Style::default().fg(ACCENT_ORANGE)),
             Span::styled("   Priority: ", Style::default().fg(MUTED_GRAY)),
             Span::styled(&priority_str, Style::default()),
             Span::styled("   Time: ", Style::default().fg(MUTED_GRAY)),
@@ -163,7 +163,7 @@ fn render_thread(f: &mut Frame, app: &App, current: &MailMessage, area: Rect) {
 
         lines.push(Line::from(vec![
             Span::styled(indent, Style::default().fg(MUTED_GRAY)),
-            Span::styled(format!("{} ", from_short), Style::default().fg(BRAND_GREEN)),
+            Span::styled(format!("{} ", from_short), Style::default().fg(BRAND_PRIMARY)),
             Span::styled(format!("[{}]  ", time), Style::default().fg(MUTED_GRAY)),
             Span::styled(
                 truncate(&msg.body, area.width.saturating_sub(30) as usize),
@@ -209,12 +209,12 @@ fn render_reply_input(f: &mut Frame, app: &App, area: Rect) {
 fn render_footer(f: &mut Frame, app: &App, area: Rect) {
     let hints = if app.reply_mode {
         Line::from(vec![
-            Span::styled(" [enter] send  ", Style::default().fg(ACCENT_AMBER)),
+            Span::styled(" [enter] send  ", Style::default().fg(ACCENT_ORANGE)),
             Span::styled("[esc] cancel", Style::default().fg(MUTED_GRAY)),
         ])
     } else {
         Line::from(vec![
-            Span::styled(" [esc] back  ", Style::default().fg(ACCENT_AMBER)),
+            Span::styled(" [esc] back  ", Style::default().fg(ACCENT_ORANGE)),
             Span::styled("[r] reply  ", Style::default().fg(MUTED_GRAY)),
             Span::styled("[↑↓/jk] scroll", Style::default().fg(MUTED_GRAY)),
         ])
