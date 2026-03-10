@@ -4,6 +4,8 @@ pub mod agent_detail;
 pub mod event_log;
 pub mod help;
 pub mod overview;
+pub mod split_terminal;
+pub mod terminal;
 
 use ratatui::Frame;
 
@@ -15,6 +17,8 @@ pub fn render(f: &mut Frame, app: &mut App) {
         View::Overview => overview::render(f, app),
         View::AgentDetail => agent_detail::render(f, app),
         View::EventLog => event_log::render(f, app),
+        View::Terminal => terminal::render(f, app),
+        View::SplitTerminal => split_terminal::render(f, app),
     }
 
     if app.show_help {

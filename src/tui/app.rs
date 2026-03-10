@@ -23,6 +23,8 @@ pub enum View {
     Overview,
     AgentDetail,
     EventLog,
+    Terminal,
+    SplitTerminal,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -93,6 +95,16 @@ pub struct App {
 
     // Tick counter for staggered refresh
     pub tick_count: u64,
+
+    // Terminal view state
+    pub terminal_lines: Vec<String>,
+    pub terminal_scroll: usize,
+    pub terminal_fullscreen: bool,
+
+    // Split terminal view state
+    pub split_agents: Vec<AgentSession>,
+    pub split_lines: Vec<Vec<String>>,
+    pub split_focus: usize,
 }
 
 impl App {
@@ -132,6 +144,14 @@ impl App {
 
             last_event_id: 0,
             tick_count: 0,
+
+            terminal_lines: vec![],
+            terminal_scroll: 0,
+            terminal_fullscreen: false,
+
+            split_agents: vec![],
+            split_lines: vec![],
+            split_focus: 0,
         }
     }
 
@@ -346,6 +366,19 @@ impl App {
                 self.refresh_agent_detail(&agent.agent_name.clone());
             }
         }
+
+        // Terminal view: refresh tmux capture every tick
+        if self.current_view == View::Terminal {
+            if let Some(ref agent) = self.selected_agent.clone() {
+                self.terminal_lines = capture_tmux(&agent.tmux_session);
+            }
+        }
+
+        // Split terminal view: refresh all split agents every tick
+        if self.current_view == View::SplitTerminal {
+            let agents = self.split_agents.clone();
+            self.split_lines = agents.iter().map(|a| capture_tmux(&a.tmux_session)).collect();
+        }
     }
 
     // -----------------------------------------------------------------------
@@ -393,6 +426,8 @@ impl App {
             View::AgentDetail => self.handle_key_detail(key),
             View::EventLog => self.handle_key_event_log(key),
             View::Overview => self.handle_key_overview(key),
+            View::Terminal => self.handle_key_terminal(key),
+            View::SplitTerminal => self.handle_key_split_terminal(key),
         }
     }
 
@@ -422,6 +457,11 @@ impl App {
             KeyCode::Up | KeyCode::Char('k') => self.scroll_up(),
             KeyCode::Down | KeyCode::Char('j') => self.scroll_down(),
             KeyCode::Enter => self.enter_detail(),
+            KeyCode::Char('t') => {
+                if self.focus == Focus::Agents {
+                    self.enter_terminal();
+                }
+            }
             KeyCode::Char('c') if key.modifiers.contains(KeyModifiers::CONTROL) => {
                 self.running = false;
             }
@@ -443,6 +483,86 @@ impl App {
             }
             KeyCode::Down | KeyCode::Char('j') => {
                 self.detail_scroll += 1;
+            }
+            KeyCode::Char('t') => self.enter_terminal(),
+            KeyCode::Char('q') => self.running = false,
+            _ => {}
+        }
+    }
+
+    fn handle_key_terminal(&mut self, key: crossterm::event::KeyEvent) {
+        use crossterm::event::KeyCode;
+
+        match key.code {
+            KeyCode::Esc => {
+                self.current_view = View::Overview;
+                self.terminal_lines.clear();
+                self.terminal_scroll = 0;
+                self.terminal_fullscreen = false;
+            }
+            KeyCode::Down | KeyCode::Char('j') => {
+                self.terminal_scroll = self.terminal_scroll.saturating_add(1);
+            }
+            KeyCode::Up | KeyCode::Char('k') => {
+                self.terminal_scroll = self.terminal_scroll.saturating_sub(1);
+            }
+            KeyCode::Char('f') => {
+                self.terminal_fullscreen = !self.terminal_fullscreen;
+            }
+            KeyCode::Char('s') => {
+                self.enter_split();
+            }
+            KeyCode::Char('G') => {
+                self.terminal_scroll = self.terminal_lines.len().saturating_sub(1);
+            }
+            KeyCode::Char('g') => {
+                self.terminal_scroll = 0;
+            }
+            KeyCode::Char('q') => self.running = false,
+            _ => {}
+        }
+    }
+
+    fn handle_key_split_terminal(&mut self, key: crossterm::event::KeyEvent) {
+        use crossterm::event::KeyCode;
+
+        match key.code {
+            KeyCode::Esc => {
+                self.current_view = View::Overview;
+            }
+            KeyCode::Tab => {
+                let count = self.split_agents.len();
+                if count > 0 {
+                    self.split_focus = (self.split_focus + 1) % count;
+                }
+            }
+            KeyCode::Enter => {
+                if let Some(agent) = self.split_agents.get(self.split_focus).cloned() {
+                    self.selected_agent = Some(agent.clone());
+                    self.terminal_lines = capture_tmux(&agent.tmux_session);
+                    self.terminal_scroll = 0;
+                    self.current_view = View::Terminal;
+                }
+            }
+            KeyCode::Char('1') => {
+                if !self.split_agents.is_empty() {
+                    self.split_focus = 0;
+                }
+            }
+            KeyCode::Char('2') => {
+                if self.split_agents.len() >= 2 {
+                    self.split_focus = 1;
+                }
+            }
+            KeyCode::Char('3') => {
+                if self.split_agents.len() >= 3 {
+                    self.split_focus = 2;
+                }
+            }
+            KeyCode::Char('4') => {
+                if self.split_agents.len() >= 4 {
+                    self.split_focus = 3;
+                }
             }
             KeyCode::Char('q') => self.running = false,
             _ => {}
@@ -533,6 +653,54 @@ impl App {
     }
 
     // -----------------------------------------------------------------------
+    // Terminal helpers
+    // -----------------------------------------------------------------------
+
+    pub fn enter_terminal(&mut self) {
+        let agent = if let Some(ref a) = self.selected_agent {
+            a.clone()
+        } else {
+            let visible = self.visible_sessions();
+            match visible.get(self.table_state.selected().unwrap_or(0)) {
+                Some(a) => (*a).clone(),
+                None => return,
+            }
+        };
+        self.selected_agent = Some(agent.clone());
+        self.terminal_lines = capture_tmux(&agent.tmux_session);
+        self.terminal_scroll = 0;
+        self.terminal_fullscreen = false;
+        self.current_view = View::Terminal;
+    }
+
+    pub fn enter_split(&mut self) {
+        let current = self.selected_agent.clone();
+        let mut agents: Vec<AgentSession> = self
+            .sessions
+            .iter()
+            .filter(|s| s.state == AgentState::Working || s.state == AgentState::Booting)
+            .take(4)
+            .cloned()
+            .collect();
+
+        // Ensure currently-viewed agent is included
+        if let Some(ref cur) = current {
+            if !agents.iter().any(|a| a.agent_name == cur.agent_name) {
+                if agents.len() >= 4 {
+                    agents.pop();
+                }
+                agents.insert(0, cur.clone());
+            }
+        }
+
+        let lines: Vec<Vec<String>> = agents.iter().map(|a| capture_tmux(&a.tmux_session)).collect();
+        self.split_agents = agents;
+        self.split_lines = lines;
+        self.split_focus = 0;
+        self.current_view = View::SplitTerminal;
+    }
+
+    // -----------------------------------------------------------------------
     // Derived data helpers
     // -----------------------------------------------------------------------
 
@@ -583,6 +751,22 @@ impl App {
 // ---------------------------------------------------------------------------
 // Helpers
 // ---------------------------------------------------------------------------
+
+pub fn capture_tmux(session_name: &str) -> Vec<String> {
+    if session_name.is_empty() {
+        return vec!["(no tmux session for this agent)".to_string()];
+    }
+    let output = std::process::Command::new("tmux")
+        .args(["capture-pane", "-t", session_name, "-p", "-S", "-100"])
+        .output();
+    match output {
+        Ok(out) if out.status.success() => String::from_utf8_lossy(&out.stdout)
+            .lines()
+            .map(|l| l.to_string())
+            .collect(),
+        _ => vec!["(tmux session not available)".to_string()],
+    }
+}
 
 pub fn state_priority(state: &AgentState) -> u8 {
     match state {
