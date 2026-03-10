@@ -96,14 +96,27 @@ const PRECOMMIT_MARKER: &str = "grove-conflict-marker-check";
 
 const PRECOMMIT_SCRIPT: &str = r#"#!/bin/sh
 # grove-conflict-marker-check
+
+# 1. Auto-format staged Rust files
+if command -v rustfmt >/dev/null 2>&1; then
+    STAGED_RS=$(git diff --cached --name-only --diff-filter=ACM -- '*.rs')
+    if [ -n "$STAGED_RS" ]; then
+        echo "$STAGED_RS" | xargs rustfmt
+        echo "$STAGED_RS" | xargs git add
+    fi
+fi
+
+# 2. Conflict marker check (staged files only)
 CONFLICT_FILES=$(git diff --cached --name-only --diff-filter=ACM -- '*.rs' | xargs grep -l '<<<<<<< ' 2>/dev/null)
 if [ -n "$CONFLICT_FILES" ]; then
     echo 'ERROR: Conflict markers found in staged .rs files:'
     echo "$CONFLICT_FILES"
     echo ''
     echo 'Resolve conflicts before committing.'
+    echo 'If these are intentional string literals in test data, use: git commit --no-verify'
     exit 1
 fi
+
 exit 0
 "#;
 

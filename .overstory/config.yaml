@@ -15,6 +15,9 @@ project:
     - name: Typecheck
       command: cargo build
       description: compiles clean
+    - name: Format
+      command: cargo fmt --check
+      description: code is rustfmt clean
 agents:
   manifestPath: .overstory/agent-manifest.json
   baseDir: .overstory/agent-defs
