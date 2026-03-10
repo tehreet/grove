@@ -1,6 +1,6 @@
 # Grove Project Context
 
-**Last updated:** 2026-03-10 (Phase 9B complete)
+**Last updated:** 2026-03-10 (Phase 9B + Codex E2E verified)
 
 ## What Is Grove
 
@@ -12,14 +12,15 @@ Grove is a Rust rebuild of [overstory](https://github.com/jayminwest/overstory),
 
 ## Current State
 
-- **27,315 lines of Rust** across ~85 source files
+- **27,376 lines of Rust** across ~85 source files
 - **453 passing tests**, 0 failures
-- **35 working commands**, 1 hidden stub (eval)
+- **36 working commands** (group close added via Codex), 1 hidden stub (eval)
 - **Compiles clean**, clippy clean
 - **Interoperates** with overstory — reads/writes the same `.overstory/` databases
 - **4 runtime adapters:** Claude Code, Codex (OpenAI), Gemini (Google), Copilot (GitHub)
 - **Zero tmux dependency** — all agents spawned as direct child processes
 - **Proven end-to-end:** Claude Code agent and Codex agent both successfully spawned, did work, and committed via grove
+- **Codex built a real feature:** `grove group close` — 61 lines of Rust written by gpt-5.4 via `grove sling --runtime codex`
 
 ## Phase Status
 
