@@ -85,11 +85,6 @@ fn is_branch_merged(project_root: &str, branch: &str, canonical: &str) -> bool {
     matches!(output, Ok(o) if o.status.success())
 }
 
-fn kill_tmux_session(session_name: &str) {
-    let _ = Command::new("tmux")
-        .args(["kill-session", "-t", session_name])
-        .output();
-}
 
 fn remove_git_worktree(project_root: &str, path: &str) -> Result<(), String> {
     let output = Command::new("git")
@@ -117,12 +112,6 @@ fn delete_branch(project_root: &str, branch: &str) -> Result<(), String> {
     Ok(())
 }
 
-fn is_tmux_alive(session_name: &str) -> bool {
-    let output = Command::new("tmux")
-        .args(["has-session", "-t", session_name])
-        .output();
-    matches!(output, Ok(o) if o.status.success())
-}
 
 // ---------------------------------------------------------------------------
 // Execute: list
@@ -249,9 +238,7 @@ pub fn execute_clean(
 
         // Kill tmux session if alive
         if let Some(s) = session {
-            if !s.tmux_session.is_empty() && is_tmux_alive(&s.tmux_session) {
-                kill_tmux_session(&s.tmux_session);
-            }
+
         }
 
         // Warn about force-deleting unmerged branches

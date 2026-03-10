@@ -102,7 +102,7 @@ pub fn execute(
     let worktrees = list_git_worktrees(root);
 
     // --- Tmux sessions ---
-    let tmux_sessions = list_tmux_sessions();
+    let tmux_sessions: Vec<TmuxSessionInfo> = vec![]; // grove uses PIDs, not tmux
 
     // --- Unread mail count ---
     let mail_db = format!("{overstory}/mail.db");
@@ -406,22 +406,6 @@ pub fn parse_git_worktree_list(text: &str) -> Vec<WorktreeInfo> {
 // Tmux sessions
 // ---------------------------------------------------------------------------
 
-fn list_tmux_sessions() -> Vec<TmuxSessionInfo> {
-    let output = Command::new("tmux")
-        .args(["list-sessions", "-F", "#{session_name}"])
-        .output();
-
-    match output {
-        Ok(o) if o.status.success() => {
-            String::from_utf8_lossy(&o.stdout)
-                .lines()
-                .filter(|l| !l.is_empty())
-                .map(|name| TmuxSessionInfo { name: name.to_string() })
-                .collect()
-        }
-        _ => vec![],
-    }
-}
 
 // ---------------------------------------------------------------------------
 // Tests

@@ -1,7 +1,7 @@
 //! `grove stop` — terminate a running agent.
 #![allow(dead_code)]
 //!
-//! Kills the agent's tmux session or process, marks it as completed in
+//! Kills the agent's process by PID, marks it as completed in
 //! SessionStore, and optionally removes its worktree and branch.
 
 use std::path::{Path, PathBuf};
@@ -10,6 +10,7 @@ use std::process::Command;
 use serde::Serialize;
 
 use crate::config::resolve_project_root;
+use crate::worktree::git::remove_worktree;
 use crate::db::sessions::SessionStore;
 use crate::json::json_output;
 use crate::logging::brand_bold;
@@ -57,24 +58,20 @@ pub fn execute(
         ));
     }
 
-    let is_headless = session.tmux_session.is_empty() && session.pid.is_some();
-
-    let mut tmux_killed = false;
+    // Kill by PID (grove always uses direct process spawning)
     let mut pid_killed = false;
 
     if !is_already_completed {
-        if is_headless {
-            if let Some(pid) = session.pid {
+        if let Some(pid) = session.pid {
+            if is_process_alive(pid) {
+                kill_process(pid);
+                // Wait briefly, SIGKILL if still alive
+                std::thread::sleep(std::time::Duration::from_secs(2));
                 if is_process_alive(pid) {
-                    kill_process(pid);
-                    pid_killed = true;
+                    let _ = std::process::Command::new("kill").args(["-9", &pid.to_string()]).output();
                 }
+                pid_killed = true;
             }
-        } else if !session.tmux_session.is_empty()
-            && is_tmux_session_alive(&session.tmux_session)
-        {
-            kill_tmux_session(&session.tmux_session);
-            tmux_killed = true;
         }
 
         store
@@ -90,7 +87,7 @@ pub fn execute(
 
     if clean_worktree {
         if !session.worktree_path.is_empty() {
-            worktree_removed = remove_worktree(&root_str, &session.worktree_path, force);
+            worktree_removed = remove_worktree(std::path::Path::new(&root_str), std::path::Path::new(&session.worktree_path), force).is_ok();
         }
         if !session.branch_name.is_empty() {
             branch_deleted = delete_branch(&root_str, &session.branch_name);
@@ -105,8 +102,7 @@ pub fn execute(
             agent_name: String,
             session_id: String,
             capability: String,
-            tmux_killed: bool,
-            pid_killed: bool,
+                        pid_killed: bool,
             worktree_removed: bool,
             branch_deleted: bool,
             force: bool,
@@ -122,8 +118,7 @@ pub fn execute(
                     agent_name: agent_name.to_string(),
                     session_id: session.id.clone(),
                     capability: session.capability.clone(),
-                    tmux_killed,
-                    pid_killed,
+                                        pid_killed,
                     worktree_removed,
                     branch_deleted,
                     force,
@@ -135,22 +130,16 @@ pub fn execute(
     } else {
         println!("{} {}", brand_bold("Agent stopped:"), agent_name);
         if !is_already_completed {
-            if is_headless {
-                if pid_killed {
-                    println!(
-                        "  Process tree killed: PID {}",
-                        session.pid.unwrap_or(0)
-                    );
-                } else {
-                    println!(
-                        "  Process was already dead (PID {})",
-                        session.pid.unwrap_or(0)
-                    );
-                }
-            } else if tmux_killed {
-                println!("  Tmux session killed: {}", session.tmux_session);
+            if pid_killed {
+                println!(
+                    "  Process killed: PID {}",
+                    session.pid.unwrap_or(0)
+                );
             } else {
-                println!("  Tmux session was already dead");
+                println!(
+                    "  Process was already dead (PID {})",
+                    session.pid.unwrap_or(0)
+                );
             }
         }
         if is_zombie {
@@ -194,38 +183,6 @@ fn kill_process(pid: i64) {
 // Tmux helpers
 // ---------------------------------------------------------------------------
 
-/// Check whether a tmux session exists.
-fn is_tmux_session_alive(session_name: &str) -> bool {
-    Command::new("tmux")
-        .args(["has-session", "-t", session_name])
-        .output()
-        .map(|o| o.status.success())
-        .unwrap_or(false)
-}
-
-/// Kill a tmux session (best-effort).
-fn kill_tmux_session(session_name: &str) {
-    let _ = Command::new("tmux")
-        .args(["kill-session", "-t", session_name])
-        .output();
-}
-
-// ---------------------------------------------------------------------------
-// Git helpers
-// ---------------------------------------------------------------------------
-
-/// Remove a git worktree (best-effort).
-fn remove_worktree(project_root: &str, worktree_path: &str, force: bool) -> bool {
-    let mut cmd = Command::new("git");
-    cmd.args(["worktree", "remove"]);
-    if force {
-        cmd.arg("--force");
-    }
-    cmd.arg(worktree_path).current_dir(project_root);
-    cmd.output()
-        .map(|o| o.status.success())
-        .unwrap_or(false)
-}
 
 /// Delete a git branch (best-effort).
 fn delete_branch(project_root: &str, branch_name: &str) -> bool {
@@ -275,12 +232,7 @@ mod tests {
         assert!(!result);
     }
 
-    #[test]
-    fn test_is_tmux_session_alive_nonexistent() {
-        let result = is_tmux_session_alive("grove-test-session-nonexistent-xyz");
-        assert!(!result);
-    }
-
+    
     #[test]
     fn test_delete_branch_in_non_git_dir() {
         let result = delete_branch("/tmp", "some-branch");
@@ -289,7 +241,7 @@ mod tests {
 
     #[test]
     fn test_remove_worktree_nonexistent() {
-        let result = remove_worktree("/tmp", "/nonexistent/path", true);
-        assert!(!result);
+        let result = remove_worktree(std::path::Path::new("/tmp"), std::path::Path::new("/nonexistent/path"), true);
+        assert!(result.is_err());
     }
 }

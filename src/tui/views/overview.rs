@@ -8,7 +8,7 @@ use ratatui::{
     Frame,
 };
 
-use crate::tui::app::{capture_tmux, App};
+use crate::tui::app::App;
 use crate::tui::theme::{agent_state_icon, unfocused_block, MUTED_GRAY};
 use crate::tui::widgets::{agent_card, feed, header, mail_list, status_bar};
 use crate::types::AgentState;
@@ -75,7 +75,7 @@ fn render_cards(f: &mut Frame, app: &mut App, area: Rect) {
             .iter()
             .rev()
             .find(|e| e.agent_name == session.agent_name);
-        let tmux_lines = capture_tmux(&session.tmux_session);
+        let tmux_lines = crate::tui::app::capture_agent_output(&session.tmux_session, &session.agent_name, ".");
         let last_line = tmux_lines.last().map(|s| s.as_str()).unwrap_or("");
 
         agent_card::render_card(
@@ -134,7 +134,7 @@ fn render_mini_terminal(f: &mut Frame, app: &App, area: Rect) {
     );
     let block = unfocused_block(&title);
 
-    let lines = capture_tmux(&agent.tmux_session);
+    let lines = crate::tui::app::capture_agent_output(&agent.tmux_session, &agent.agent_name, ".");
     let display_lines: Vec<Line> = lines
         .iter()
         .rev()

@@ -122,41 +122,6 @@ fn check_git() -> DoctorCheck {
     }
 }
 
-fn check_tmux() -> DoctorCheck {
-    let name = "tmux".to_string();
-    let category = Some("dependencies".to_string());
-
-    let output = Command::new("tmux").arg("-V").output();
-    match output {
-        Err(_) => DoctorCheck {
-            name,
-            status: CheckStatus::Warn,
-            detail: "not installed (optional)".to_string(),
-            category,
-        },
-        Ok(o) if !o.status.success() => DoctorCheck {
-            name,
-            status: CheckStatus::Warn,
-            detail: "not installed (optional)".to_string(),
-            category,
-        },
-        Ok(o) => {
-            let version_str = String::from_utf8_lossy(&o.stdout);
-            let version = version_str
-                .split_whitespace()
-                .last()
-                .unwrap_or("")
-                .trim()
-                .to_string();
-            DoctorCheck {
-                name,
-                status: CheckStatus::Pass,
-                detail: version,
-                category,
-            }
-        }
-    }
-}
 
 fn check_agent_runtime(runtime_name: &str) -> DoctorCheck {
     let category = Some("dependencies".to_string());
@@ -322,7 +287,6 @@ pub fn execute(json: bool, _verbose: bool, category: Option<String>) -> Result<(
 
     let mut checks = vec![
         check_git(),
-        check_tmux(),
         check_agent_runtime(&runtime_name),
         check_overstory_dir(&overstory_dir),
         check_config_yaml(&overstory_dir),
@@ -402,15 +366,7 @@ mod tests {
         );
     }
 
-    #[test]
-    fn check_tmux_returns_pass_or_warn() {
-        let result = check_tmux();
-        assert!(
-            result.status == CheckStatus::Pass || result.status == CheckStatus::Warn,
-            "tmux check should only pass or warn, got fail"
-        );
-    }
-
+    
     #[test]
     fn check_database_missing() {
         let dir = TempDir::new().unwrap();

@@ -34,7 +34,6 @@ use crate::types::{
     MailPriority, OverlayConfig, ResolvedModel, RunStatus,
 };
 use crate::worktree::git::{create_worktree, rollback_worktree};
-use crate::worktree::tmux;
 
 // ---------------------------------------------------------------------------
 // Pure functions (testable)
@@ -628,12 +627,11 @@ fn do_spawn(ctx: DoSpawnContext<'_>) -> Result<(), String> {
     fs::create_dir_all(&agent_log_dir)
         .map_err(|e| format!("Failed to create log dir: {e}"))?;
 
-    // Spawn the agent — headless flag overrides runtime default
-    let (pid, tmux_session, child_process) = if ctx.headless || runtime.is_headless() {
-        spawn_headless(ctx.agent_name, ctx.task_id, ctx.worktree_path, &agent_log_dir, runtime.as_ref(), &resolved_model, ctx.parent_agent, ctx.depth)?
-    } else {
-        spawn_tmux(&ctx.config.project.name, ctx.agent_name, ctx.capability, ctx.task_id, ctx.worktree_path, runtime.as_ref(), &resolved_model, ctx.parent_agent, ctx.depth)?
-    };
+    // Spawn the agent — always headless (direct child process, no tmux)
+    let (pid, tmux_session, child_process) = spawn_headless(
+        ctx.agent_name, ctx.task_id, ctx.worktree_path, &agent_log_dir,
+        runtime.as_ref(), &resolved_model, ctx.parent_agent, ctx.depth,
+    )?;
 
     // Record session in DB
     let session = AgentSession {
@@ -696,18 +694,12 @@ fn do_spawn(ctx: DoSpawnContext<'_>) -> Result<(), String> {
             )
         );
     } else {
-        let heading = if ctx.headless || runtime.is_headless() {
-            "Agent launched (headless)"
-        } else {
-            "Agent launched"
-        };
+        let heading = "Agent launched";
         print_success(heading, Some(ctx.agent_name));
         println!("   Task:     {}", ctx.task_id);
         println!("   Branch:   {}", ctx.branch_name);
         println!("   Worktree: {}", ctx.worktree_path.display());
-        if !tmux_session.is_empty() {
-            println!("   Tmux:     {tmux_session}");
-        }
+
         if let Some(p) = pid {
             println!("   PID:      {p}");
         }
@@ -794,55 +786,6 @@ fn spawn_headless(
     Ok((Some(pid), String::new(), Some(child)))
 }
 
-/// Spawn an interactive tmux session and send the beacon.
-#[allow(clippy::too_many_arguments)]
-fn spawn_tmux(
-    project_name: &str,
-    agent_name: &str,
-    capability: &str,
-    task_id: &str,
-    worktree_path: &Path,
-    runtime: &dyn crate::runtimes::AgentRuntime,
-    model: &ResolvedModel,
-    parent_agent: Option<&str>,
-    depth: u32,
-) -> Result<(Option<i64>, String, Option<std::process::Child>), String> {
-    tmux::ensure_tmux_available()?;
-
-    let tmux_name = format!("overstory-{project_name}-{agent_name}");
-    let spawn_opts = SpawnOpts {
-        model: model.model.clone(),
-        cwd: worktree_path.to_string_lossy().to_string(),
-        permission_mode: "bypassPermissions".to_string(),
-        allowed_tools: vec![
-            "Read".to_string(),
-            "Write".to_string(),
-            "Edit".to_string(),
-            "Bash".to_string(),
-            "Glob".to_string(),
-            "Grep".to_string(),
-            "Agent".to_string(),
-        ],
-        instruction_path: runtime.instruction_path().to_string(),
-    };
-    let command = runtime.build_interactive_command(&spawn_opts);
-    let tmux_pid = tmux::create_session(&tmux_name, worktree_path, &command)?;
-
-    // Brief wait for TUI initialization
-    std::thread::sleep(std::time::Duration::from_millis(2_000));
-
-    let beacon = build_beacon(
-        agent_name,
-        capability,
-        task_id,
-        parent_agent,
-        depth,
-        runtime.instruction_path(),
-    );
-    let _ = tmux::send_keys(&tmux_name, &beacon);
-
-    Ok((Some(tmux_pid as i64), tmux_name, None))
-}
 
 // ---------------------------------------------------------------------------
 // Tests

@@ -1015,21 +1015,6 @@ impl App {
 // Helpers
 // ---------------------------------------------------------------------------
 
-pub fn capture_tmux(session_name: &str) -> Vec<String> {
-    if session_name.is_empty() {
-        return vec!["(no tmux session for this agent)".to_string()];
-    }
-    let output = std::process::Command::new("tmux")
-        .args(["capture-pane", "-t", session_name, "-p", "-S", "-100"])
-        .output();
-    match output {
-        Ok(out) if out.status.success() => String::from_utf8_lossy(&out.stdout)
-            .lines()
-            .map(|l| l.to_string())
-            .collect(),
-        _ => vec!["(tmux session not available)".to_string()],
-    }
-}
 
 /// Capture agent output with fallback chain:
 /// 1. Try tmux capture-pane (backward compat with overstory agents)
@@ -1040,22 +1025,10 @@ pub fn capture_agent_output(
     agent_name: &str,
     project_root: &str,
 ) -> Vec<String> {
-    // 1. Try tmux first if a session name is provided
-    if !session_name.is_empty() {
-        let output = std::process::Command::new("tmux")
-            .args(["capture-pane", "-t", session_name, "-p", "-S", "-100"])
-            .output();
-        if let Ok(out) = output {
-            if out.status.success() {
-                return String::from_utf8_lossy(&out.stdout)
-                    .lines()
-                    .map(|l| l.to_string())
-                    .collect();
-            }
-        }
-    }
+    // grove uses direct process spawning — read from log files, not tmux
+    // session_name parameter is kept for backward compat but ignored
 
-    // 2. Fallback: read from .overstory/logs/<agent_name>/ — most recent subdir
+    // Read from .overstory/logs/<agent_name>/ — most recent subdir
     let log_base = std::path::Path::new(project_root)
         .join(".overstory")
         .join("logs")
@@ -1083,7 +1056,7 @@ pub fn capture_agent_output(
     }
 
     // 3. Nothing available
-    vec!["(no output available — no tmux session or log file found)".to_string()]
+    vec!["(no output available — agent log file not found)".to_string()]
 }
 
 pub fn state_priority(state: &AgentState) -> u8 {

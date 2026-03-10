@@ -33,17 +33,6 @@ pub fn is_pid_alive(pid: i64) -> bool {
     std::fs::metadata(format!("/proc/{pid}")).is_ok()
 }
 
-/// Check whether a tmux session is alive.
-pub fn is_tmux_alive(session_name: &str) -> bool {
-    if session_name.is_empty() {
-        return false;
-    }
-    Command::new("tmux")
-        .args(["has-session", "-t", session_name])
-        .output()
-        .map(|o| o.status.success())
-        .unwrap_or(false)
-}
 
 /// Determine the health status of an agent session.
 ///
@@ -57,16 +46,10 @@ pub fn check_health(
     config: &WatchdogConfig,
     now_ms: u64,
 ) -> HealthStatus {
-    // Check PID liveness
+    // Check PID liveness (grove uses direct process spawning, no tmux)
     if let Some(pid) = session.pid {
         if !is_pid_alive(pid) {
-            // Also check tmux session for tmux-based agents
-            if !session.tmux_session.is_empty() && !is_tmux_alive(&session.tmux_session) {
-                return HealthStatus::Dead;
-            } else if session.tmux_session.is_empty() {
-                // Headless agent with dead PID
-                return HealthStatus::Dead;
-            }
+            return HealthStatus::Dead;
         }
     }
 
@@ -123,12 +106,7 @@ pub fn kill_agent(
         }
     }
 
-    // Kill tmux session
-    if !session.tmux_session.is_empty() {
-        let _ = Command::new("tmux")
-            .args(["kill-session", "-t", &session.tmux_session])
-            .output();
-    }
+
 
     // Remove worktree if it exists
     if !session.worktree_path.is_empty() {
@@ -303,15 +281,5 @@ mod tests {
         assert!(!is_pid_alive(999_999_999));
     }
 
-    #[test]
-    fn test_is_tmux_alive_nonexistent() {
-        // Nonexistent session should return false
-        assert!(!is_tmux_alive("nonexistent-session-xyz-abc-123"));
+    
     }
-
-    #[test]
-    fn test_is_tmux_alive_empty() {
-        // Empty session name should return false
-        assert!(!is_tmux_alive(""));
-    }
-}
