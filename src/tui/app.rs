@@ -471,15 +471,22 @@ impl App {
             return;
         }
 
-        // Help overlay: any key dismisses
+        // Help overlay: ? toggles, Esc dismisses, other keys pass through
+        if key.code == KeyCode::Char('?') {
+            self.show_help = !self.show_help;
+            return;
+        }
         if self.show_help {
-            self.show_help = false;
+            if key.code == KeyCode::Esc || key.code == KeyCode::Char('q') {
+                self.show_help = false;
+            }
             return;
         }
 
-        // Global keybindings (before view dispatch)
-        if key.code == KeyCode::Char('?') {
-            self.show_help = true;
+        // Global view switch: 1 always goes to overview
+        if key.code == KeyCode::Char('1') {
+            self.current_view = View::Overview;
+            self.selected_agent = None;
             return;
         }
 
@@ -545,7 +552,7 @@ impl App {
         use crossterm::event::KeyCode;
 
         match key.code {
-            KeyCode::Esc | KeyCode::Backspace => {
+            KeyCode::Esc | KeyCode::Backspace | KeyCode::Char('b') => {
                 self.current_view = View::Overview;
                 self.selected_agent = None;
                 self.detail_scroll = 0;
@@ -716,7 +723,7 @@ impl App {
         }
 
         match key.code {
-            KeyCode::Esc | KeyCode::Backspace => {
+            KeyCode::Esc | KeyCode::Backspace | KeyCode::Char('b') => {
                 self.current_view = View::Overview;
                 self.selected_message = None;
                 self.thread_messages.clear();
