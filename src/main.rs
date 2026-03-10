@@ -15,6 +15,7 @@ mod logging;
 mod merge;
 mod process;
 mod runtimes;
+mod tui;
 mod types;
 mod watchdog;
 mod worktree;
@@ -1308,7 +1309,18 @@ fn run_command(
             args.json || json,
             project,
         ),
-        Commands::Dashboard(_) => not_yet_implemented("dashboard", json),
+        Commands::Dashboard(_) => {
+            let cwd = std::env::current_dir().map_err(|e| e.to_string())?;
+            let project_root = if let Some(p) = project {
+                p.to_string_lossy().to_string()
+            } else {
+                config::resolve_project_root(&cwd, None)
+                    .map_err(|e| e.to_string())?
+                    .to_string_lossy()
+                    .to_string()
+            };
+            tui::launch_dashboard(&project_root).map_err(|e| e.to_string())
+        }
         Commands::Inspect(args) => commands::inspect::execute(
             &args.agent_name,
             args.json || json,

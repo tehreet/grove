@@ -2,7 +2,7 @@
 
 use std::path::PathBuf;
 
-use ratatui::widgets::{ListState, TableState};
+use ratatui::widgets::TableState;
 
 use crate::db::events::EventStore;
 use crate::db::mail::MailStore;
@@ -329,12 +329,12 @@ impl App {
         self.refresh_events();
 
         // Mail every 2s
-        if self.tick_count % 2 == 0 {
+        if self.tick_count.is_multiple_of(2) {
             self.refresh_mail();
         }
 
         // Merge + metrics every 5s
-        if self.tick_count % 5 == 0 {
+        if self.tick_count.is_multiple_of(5) {
             self.refresh_merge();
             self.refresh_metrics();
             self.refresh_run_id();
@@ -353,7 +353,7 @@ impl App {
     // -----------------------------------------------------------------------
 
     pub fn handle_key(&mut self, key: crossterm::event::KeyEvent) {
-        use crossterm::event::{KeyCode, KeyModifiers};
+        use crossterm::event::KeyCode;
 
         // Filter mode intercepts most keys
         if self.filter_mode {

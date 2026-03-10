@@ -1,6 +1,6 @@
 //! Grove TUI brand palette and style helpers.
 
-use ratatui::style::{Color, Modifier, Style};
+use ratatui::style::{Color, Style};
 use ratatui::widgets::{Block, BorderType, Borders};
 
 pub const BRAND_GREEN: Color = Color::Rgb(46, 125, 50);
@@ -53,14 +53,3 @@ pub fn agent_state_icon(state: &crate::types::AgentState) -> &'static str {
     }
 }
 
-pub fn dimmed() -> Style {
-    Style::default().fg(MUTED_GRAY)
-}
-
-pub fn bold_green() -> Style {
-    Style::default().fg(BRAND_GREEN).add_modifier(Modifier::BOLD)
-}
-
-pub fn bold_amber() -> Style {
-    Style::default().fg(ACCENT_AMBER).add_modifier(Modifier::BOLD)
-}
