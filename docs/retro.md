@@ -149,20 +149,6 @@ This doc tracks process failures we discovered while building grove with oversto
 
 ---
 
-## Pattern Summary
-
-Most failures fall into three categories:
-
-1. **Verification gap:** Agents check "does it compile?" but not "does it work?" Quality gates need to include runtime behavior checks, not just static analysis.
-
-2. **Interface gap:** Parallel builders don't coordinate on shared files/APIs. When builder A writes to a file and builder B also writes to the same file, the last one wins and may clobber the first. Leads need to enforce interface contracts.
-
-3. **Merge gap:** The coordinator doesn't merge branches reliably. Branches pile up, merge conflicts accumulate, and manual intervention is required. The coordinator must merge sequentially as agents complete, not batch at the end.
-
-All three are solvable in grove's coordinator by making verification commands, interface contracts, and sequential merge steps first-class parts of the orchestration loop.
-
----
-
 ### RETRO-011: RETRO-007 repeated — builders still don't wire commands in main.rs
 
 **What happened:** Phase 5 dispatch message explicitly said "RETRO-007: Wire every command in main.rs — no not_yet_implemented stubs remaining." The builders wrote 8 implementation files (logs.rs, replay.rs, metrics_cmd.rs, monitor.rs, watch_cmd.rs, prime.rs, ecosystem.rs). All 8 are still stubs in main.rs.
@@ -176,3 +162,79 @@ All three are solvable in grove's coordinator by making verification commands, i
 - Consider making "no remaining stubs" a quality gate, not just an acceptance criterion
 
 **Proposed fix:** Add a CI check or quality gate that fails if any command in the clap enum dispatches to not_yet_implemented when an implementation file exists in src/commands/
+
+---
+
+### RETRO-012: `grove init` doesn't create templates/overlay.md.tmpl
+
+**What happened:** `grove init` creates `.overstory/config.yaml`, agent manifest, hooks, etc. But it doesn't copy `templates/overlay.md.tmpl` into the project. When `grove sling` tries to spawn an agent, it fails with "Failed to read overlay template — No such file or directory."
+
+**Root cause:** The init command was modeled after overstory's `ov init` which also doesn't copy the template — overstory finds the template from its npm package installation directory. But grove is a standalone binary with no package directory. The template needs to be either embedded at compile time (via `include_str!` in `build.rs`) or written to disk during `grove init`.
+
+**Lesson for overstory/grove:**
+- When porting from a package-manager-distributed tool to a standalone binary, all runtime assets must be embedded or bundled
+- `init` must create EVERYTHING needed for `sling` to work. If sling depends on a file, init must create it.
+- E2E testing catches this — unit tests don't. The sling unit tests worked because the grove repo already had the template. A fresh `grove init` project did not.
+
+**Proposed fix:** Embed the overlay template at compile time with `include_str!("../../templates/overlay.md.tmpl")` and write it during `grove init`. Also update `sling` to fall back to the embedded template if the file doesn't exist on disk.
+
+---
+
+### RETRO-013: `grove group add` and `grove group status` fail — group ID lookup broken
+
+**What happened:** After `grove group create e2e-group`, both `grove group add e2e-group e2e-test` and `grove group status e2e-group` return "Group not found." The group was created (shows in `grove group list`) but can't be referenced by name.
+
+**Root cause:** The group is stored with an auto-generated ID (e.g., `group-0a43bfbf`) but the `add` and `status` commands may be looking up by the generated ID rather than the name, or vice versa. The create command prints the name but stores with a different key.
+
+**Lesson for overstory/grove:**
+- Commands that create resources must clearly communicate the identifier needed to reference them later
+- Integration testing must cover the full lifecycle: create → list → reference → modify → status
+- If a resource has both a name and an ID, both should work as lookup keys
+
+---
+
+### RETRO-014: Mandatory human E2E testing at phase conclusion
+
+**What happened:** Multiple phases shipped with bugs that unit tests didn't catch: empty overlays, unwired commands, missing templates, broken group lookups. Every one of these was caught immediately by running the actual commands manually.
+
+**Root cause:** We relied on AI-generated unit tests to verify correctness. These tests test the functions the agents wrote, using the assumptions the agents had. They don't test the integrated system from a user's perspective. The real bugs are at integration boundaries — between commands, between init and sling, between create and status.
+
+**Lesson for overstory/grove:**
+- At the conclusion of EVERY phase, we MUST manually E2E test every command that was created or changed
+- The testing must follow a user workflow: init → sling → status → mail → clean. Not isolated command checks.
+- Document results and improvement ideas in the retro
+- No phase is complete until E2E testing passes AND results are documented
+- AI-generated tests verify AI's assumptions. Human testing verifies actual behavior.
+
+---
+
+## Process Improvement: Phase Conclusion Checklist
+
+After every phase, before moving to the next:
+
+1. **Merge all branches** to main
+2. **Build and run unit tests:** `cargo build && cargo test`
+3. **E2E test every new/changed command** against real data (not mocks)
+4. **Test the user workflow:** init → sling → status → mail → log → clean
+5. **Test interop:** grove reads what ov writes and vice versa
+6. **Document bugs found** in this retro
+7. **Dispatch bugfixes** with explicit verification commands
+8. **Verify bugfixes** pass the same E2E tests
+9. **Push to GitHub**
+10. **Update CONTEXT.md** with current state
+
+---
+
+## Pattern Summary
+
+Most failures fall into four categories:
+
+1. **Verification gap:** Agents check "does it compile?" but not "does it work?" Quality gates need to include runtime behavior checks, not just static analysis.
+
+2. **Interface gap:** Parallel builders don't coordinate on shared files/APIs. When builder A writes to a file and builder B also writes to the same file, the last one wins and may clobber the first. Leads need to enforce interface contracts.
+
+3. **Merge gap:** The coordinator doesn't merge branches reliably. Branches pile up, merge conflicts accumulate, and manual intervention is required. The coordinator must merge sequentially as agents complete, not batch at the end.
+
+4. **Completeness gap:** Individual components work but the integrated system doesn't. Init creates a project, but the project can't spawn agents. Groups can be created but not referenced. Commands compile but aren't wired. Only end-to-end user-workflow testing catches these.
+
+All four are solvable in grove's coordinator by making verification commands, interface contracts, sequential merge steps, and E2E test suites first-class parts of the orchestration loop.
