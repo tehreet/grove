@@ -588,3 +588,221 @@ pub fn state_priority(state: &AgentState) -> u8 {
         AgentState::Completed => 4,
     }
 }
+
+// ---------------------------------------------------------------------------
+// Tests
+// ---------------------------------------------------------------------------
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::types::AgentState;
+
+    fn make_session(name: &str, state: AgentState) -> AgentSession {
+        AgentSession {
+            id: format!("session-{}", name),
+            agent_name: name.to_string(),
+            capability: "builder".to_string(),
+            worktree_path: "/tmp".to_string(),
+            branch_name: "main".to_string(),
+            task_id: "task-1".to_string(),
+            tmux_session: format!("tmux-{}", name),
+            state,
+            pid: None,
+            parent_agent: None,
+            depth: 1,
+            run_id: None,
+            started_at: "2024-01-01T00:00:00Z".to_string(),
+            last_activity: "2024-01-01T00:00:01Z".to_string(),
+            escalation_level: 0,
+            stalled_since: None,
+            transcript_path: None,
+        }
+    }
+
+    #[test]
+    fn test_app_new_default_state() {
+        let app = App::new("/tmp");
+        assert!(app.running);
+        assert_eq!(app.current_view, View::Overview);
+        assert_eq!(app.focus, Focus::Agents);
+        assert!(app.sessions.is_empty());
+        assert!(app.events.is_empty());
+        assert!(!app.show_help);
+        assert!(!app.show_completed);
+        assert!(app.filter_text.is_empty());
+    }
+
+    #[test]
+    fn test_state_priority_order() {
+        assert!(state_priority(&AgentState::Working) < state_priority(&AgentState::Booting));
+        assert!(state_priority(&AgentState::Booting) < state_priority(&AgentState::Stalled));
+        assert!(state_priority(&AgentState::Stalled) < state_priority(&AgentState::Zombie));
+        assert!(state_priority(&AgentState::Zombie) < state_priority(&AgentState::Completed));
+    }
+
+    #[test]
+    fn test_focus_cycle() {
+        assert_eq!(Focus::Agents.next(), Focus::Feed);
+        assert_eq!(Focus::Feed.next(), Focus::Mail);
+        assert_eq!(Focus::Mail.next(), Focus::Agents);
+        assert_eq!(Focus::Agents.prev(), Focus::Mail);
+        assert_eq!(Focus::Feed.prev(), Focus::Agents);
+        assert_eq!(Focus::Mail.prev(), Focus::Feed);
+    }
+
+    #[test]
+    fn test_visible_sessions_filter_completed() {
+        let mut app = App::new("/tmp");
+        app.sessions = vec![
+            make_session("agent-a", AgentState::Working),
+            make_session("agent-b", AgentState::Completed),
+        ];
+
+        // By default, completed agents are hidden
+        let visible = app.visible_sessions();
+        assert_eq!(visible.len(), 1);
+        assert_eq!(visible[0].agent_name, "agent-a");
+
+        // With show_completed, both visible
+        app.show_completed = true;
+        let visible = app.visible_sessions();
+        assert_eq!(visible.len(), 2);
+    }
+
+    #[test]
+    fn test_visible_sessions_filter_by_name() {
+        let mut app = App::new("/tmp");
+        app.sessions = vec![
+            make_session("types-builder", AgentState::Working),
+            make_session("config-scout", AgentState::Working),
+        ];
+        app.filter_text = "types".to_string();
+
+        let visible = app.visible_sessions();
+        assert_eq!(visible.len(), 1);
+        assert_eq!(visible[0].agent_name, "types-builder");
+    }
+
+    #[test]
+    fn test_active_agent_count() {
+        let mut app = App::new("/tmp");
+        app.sessions = vec![
+            make_session("a", AgentState::Working),
+            make_session("b", AgentState::Booting),
+            make_session("c", AgentState::Completed),
+            make_session("d", AgentState::Stalled),
+        ];
+        assert_eq!(app.active_agent_count(), 2);
+    }
+
+    #[test]
+    fn test_unread_count() {
+        use crate::types::{MailMessage, MailMessageType, MailPriority};
+        let mut app = App::new("/tmp");
+        app.messages = vec![
+            MailMessage {
+                id: "1".to_string(),
+                from: "a".to_string(),
+                to: "b".to_string(),
+                subject: "test".to_string(),
+                body: "body".to_string(),
+                priority: MailPriority::Normal,
+                message_type: MailMessageType::Status,
+                thread_id: None,
+                payload: None,
+                read: false,
+                created_at: "2024-01-01T00:00:00Z".to_string(),
+            },
+            MailMessage {
+                id: "2".to_string(),
+                from: "c".to_string(),
+                to: "d".to_string(),
+                subject: "read msg".to_string(),
+                body: "body".to_string(),
+                priority: MailPriority::Normal,
+                message_type: MailMessageType::Status,
+                thread_id: None,
+                payload: None,
+                read: true,
+                created_at: "2024-01-01T00:00:01Z".to_string(),
+            },
+        ];
+        assert_eq!(app.unread_count(), 1);
+    }
+
+    #[test]
+    fn test_total_cost_display_empty() {
+        let app = App::new("/tmp");
+        assert_eq!(app.total_cost_display(), "");
+    }
+
+    #[test]
+    fn test_total_cost_display_with_cost() {
+        let mut app = App::new("/tmp");
+        app.total_cost = 12.50;
+        assert_eq!(app.total_cost_display(), "$12.50");
+    }
+
+    #[test]
+    fn test_handle_key_quit() {
+        use crossterm::event::{KeyCode, KeyEvent, KeyEventKind, KeyEventState, KeyModifiers};
+        let mut app = App::new("/tmp");
+        assert!(app.running);
+        let key = KeyEvent {
+            code: KeyCode::Char('q'),
+            modifiers: KeyModifiers::NONE,
+            kind: KeyEventKind::Press,
+            state: KeyEventState::NONE,
+        };
+        app.handle_key(key);
+        assert!(!app.running);
+    }
+
+    #[test]
+    fn test_handle_key_help_toggle() {
+        use crossterm::event::{KeyCode, KeyEvent, KeyEventKind, KeyEventState, KeyModifiers};
+        let mut app = App::new("/tmp");
+        assert!(!app.show_help);
+        let key = KeyEvent {
+            code: KeyCode::Char('?'),
+            modifiers: KeyModifiers::NONE,
+            kind: KeyEventKind::Press,
+            state: KeyEventState::NONE,
+        };
+        app.handle_key(key);
+        assert!(app.show_help);
+        // Any key dismisses help
+        app.handle_key(key);
+        assert!(!app.show_help);
+    }
+
+    #[test]
+    fn test_handle_key_tab_cycles_focus() {
+        use crossterm::event::{KeyCode, KeyEvent, KeyEventKind, KeyEventState, KeyModifiers};
+        let mut app = App::new("/tmp");
+        assert_eq!(app.focus, Focus::Agents);
+        let tab_key = KeyEvent {
+            code: KeyCode::Tab,
+            modifiers: KeyModifiers::NONE,
+            kind: KeyEventKind::Press,
+            state: KeyEventState::NONE,
+        };
+        app.handle_key(tab_key);
+        assert_eq!(app.focus, Focus::Feed);
+        app.handle_key(tab_key);
+        assert_eq!(app.focus, Focus::Mail);
+        app.handle_key(tab_key);
+        assert_eq!(app.focus, Focus::Agents);
+    }
+
+    #[test]
+    fn test_empty_db_state_graceful() {
+        // App with nonexistent project root should not panic
+        let mut app = App::new("/nonexistent/path");
+        app.refresh_all(); // Should silently handle missing DBs
+        assert!(app.sessions.is_empty());
+        assert!(app.events.is_empty());
+        assert!(app.messages.is_empty());
+    }
+}
