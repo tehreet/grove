@@ -1,139 +1,149 @@
 [
-  {
-    "id": "group-93fb322b",
-    "name": "phase-0-foundation",
-    "memberIssueIds": [
-      "grove-c146",
-      "grove-c37a",
-      "grove-3e48",
-      "grove-8402",
-      "grove-71cd",
-      "grove-a60b"
-    ],
-    "status": "completed",
-    "createdAt": "2026-03-09T18:52:59.647Z",
-    "completedAt": "2026-03-09T19:58:57.307Z"
-  },
-  {
-    "id": "group-16248588",
-    "name": "phase-1-readonly-commands",
-    "memberIssueIds": [
-      "grove-53e2",
-      "grove-832b",
-      "grove-12d3",
-      "grove-045d"
-    ],
-    "status": "completed",
-    "createdAt": "2026-03-09T20:23:16.961Z",
-    "completedAt": "2026-03-09T20:49:39.672Z"
-  },
-  {
-    "id": "group-319e4944",
-    "name": "phase-2-write-commands",
-    "memberIssueIds": [
-      "grove-301f",
-      "grove-1159",
-      "grove-ec38",
-      "grove-e2fe"
-    ],
-    "status": "completed",
-    "createdAt": "2026-03-09T21:01:29.415Z",
-    "completedAt": "2026-03-09T21:40:06.740Z"
-  },
-  {
-    "id": "group-142f16b6",
-    "name": "phase-3-process-management",
-    "memberIssueIds": [
-      "grove-b67c",
-      "grove-ccba",
-      "grove-e0f9",
-      "grove-f95b"
-    ],
-    "status": "completed",
-    "createdAt": "2026-03-09T21:44:28.079Z",
-    "completedAt": "2026-03-09T22:38:36.655Z"
-  },
-  {
-    "id": "group-a41d1e96",
-    "name": "phase-3-retry",
-    "memberIssueIds": [
-      "grove-b67c",
-      "grove-ccba",
-      "grove-e0f9",
-      "grove-f95b"
-    ],
-    "status": "completed",
-    "createdAt": "2026-03-09T22:02:40.456Z",
-    "completedAt": "2026-03-09T23:19:42.447Z"
-  },
-  {
-    "id": "group-07cbc617",
-    "name": "phase-4-coordinator-observability",
-    "memberIssueIds": [
-      "grove-fc52",
-      "grove-8517",
-      "grove-c067",
-      "grove-a6a1"
-    ],
-    "status": "completed",
-    "createdAt": "2026-03-09T23:22:45.532Z",
-    "completedAt": "2026-03-10T00:17:35.167Z"
-  },
-  {
-    "id": "group-b6e477c4",
-    "name": "phase-4-bugfix",
-    "memberIssueIds": [
-      "grove-9469"
-    ],
-    "status": "completed",
-    "createdAt": "2026-03-10T00:01:21.794Z",
-    "completedAt": "2026-03-10T00:17:01.243Z"
-  },
-  {
-    "id": "group-03783d80",
-    "name": "empty-verify-group",
-    "memberIssueIds": [],
-    "status": "active",
-    "createdAt": "2026-03-10T00:19:44.058222936+00:00",
-    "completedAt": null
-  },
-  {
-    "id": "group-0ffc0fd8",
-    "name": "phase-5-feature-parity",
-    "memberIssueIds": [
-      "grove-a426",
-      "grove-fd1c",
-      "grove-5d16",
-      "grove-397e"
-    ],
-    "status": "active",
-    "createdAt": "2026-03-10T00:47:49.404Z",
-    "completedAt": null
-  },
-  {
-    "id": "group-0a43bfbf",
-    "name": "e2e-group",
-    "memberIssueIds": [],
-    "status": "active",
-    "createdAt": "2026-03-10T04:32:28.172216166+00:00",
-    "completedAt": null
-  },
-  {
-    "id": "group-349735d2",
-    "name": "verify-group",
-    "memberIssueIds": [
-      "test-issue-1"
-    ],
-    "status": "active",
-    "createdAt": "2026-03-10T04:39:40.882328834+00:00",
-    "completedAt": null
-  },
-  {
-    "id": "group-22f1b622",
-    "name": "verify-group",
-    "memberIssueIds": [],
-    "status": "active",
-    "createdAt": "2026-03-10T04:44:31.586270224+00:00",
-    "completedAt": null
-  }
+	{
+		"id": "group-93fb322b",
+		"name": "phase-0-foundation",
+		"memberIssueIds": [
+			"grove-c146",
+			"grove-c37a",
+			"grove-3e48",
+			"grove-8402",
+			"grove-71cd",
+			"grove-a60b"
+		],
+		"status": "completed",
+		"createdAt": "2026-03-09T18:52:59.647Z",
+		"completedAt": "2026-03-09T19:58:57.307Z"
+	},
+	{
+		"id": "group-16248588",
+		"name": "phase-1-readonly-commands",
+		"memberIssueIds": [
+			"grove-53e2",
+			"grove-832b",
+			"grove-12d3",
+			"grove-045d"
+		],
+		"status": "completed",
+		"createdAt": "2026-03-09T20:23:16.961Z",
+		"completedAt": "2026-03-09T20:49:39.672Z"
+	},
+	{
+		"id": "group-319e4944",
+		"name": "phase-2-write-commands",
+		"memberIssueIds": [
+			"grove-301f",
+			"grove-1159",
+			"grove-ec38",
+			"grove-e2fe"
+		],
+		"status": "completed",
+		"createdAt": "2026-03-09T21:01:29.415Z",
+		"completedAt": "2026-03-09T21:40:06.740Z"
+	},
+	{
+		"id": "group-142f16b6",
+		"name": "phase-3-process-management",
+		"memberIssueIds": [
+			"grove-b67c",
+			"grove-ccba",
+			"grove-e0f9",
+			"grove-f95b"
+		],
+		"status": "completed",
+		"createdAt": "2026-03-09T21:44:28.079Z",
+		"completedAt": "2026-03-09T22:38:36.655Z"
+	},
+	{
+		"id": "group-a41d1e96",
+		"name": "phase-3-retry",
+		"memberIssueIds": [
+			"grove-b67c",
+			"grove-ccba",
+			"grove-e0f9",
+			"grove-f95b"
+		],
+		"status": "completed",
+		"createdAt": "2026-03-09T22:02:40.456Z",
+		"completedAt": "2026-03-09T23:19:42.447Z"
+	},
+	{
+		"id": "group-07cbc617",
+		"name": "phase-4-coordinator-observability",
+		"memberIssueIds": [
+			"grove-fc52",
+			"grove-8517",
+			"grove-c067",
+			"grove-a6a1"
+		],
+		"status": "completed",
+		"createdAt": "2026-03-09T23:22:45.532Z",
+		"completedAt": "2026-03-10T00:17:35.167Z"
+	},
+	{
+		"id": "group-b6e477c4",
+		"name": "phase-4-bugfix",
+		"memberIssueIds": [
+			"grove-9469"
+		],
+		"status": "completed",
+		"createdAt": "2026-03-10T00:01:21.794Z",
+		"completedAt": "2026-03-10T00:17:01.243Z"
+	},
+	{
+		"id": "group-03783d80",
+		"name": "empty-verify-group",
+		"memberIssueIds": [],
+		"status": "active",
+		"createdAt": "2026-03-10T00:19:44.058222936+00:00",
+		"completedAt": null
+	},
+	{
+		"id": "group-0ffc0fd8",
+		"name": "phase-5-feature-parity",
+		"memberIssueIds": [
+			"grove-a426",
+			"grove-fd1c",
+			"grove-5d16",
+			"grove-397e"
+		],
+		"status": "active",
+		"createdAt": "2026-03-10T00:47:49.404Z",
+		"completedAt": null
+	},
+	{
+		"id": "group-0a43bfbf",
+		"name": "e2e-group",
+		"memberIssueIds": [],
+		"status": "active",
+		"createdAt": "2026-03-10T04:32:28.172216166+00:00",
+		"completedAt": null
+	},
+	{
+		"id": "group-349735d2",
+		"name": "verify-group",
+		"memberIssueIds": [
+			"test-issue-1"
+		],
+		"status": "active",
+		"createdAt": "2026-03-10T04:39:40.882328834+00:00",
+		"completedAt": null
+	},
+	{
+		"id": "group-22f1b622",
+		"name": "verify-group",
+		"memberIssueIds": [],
+		"status": "active",
+		"createdAt": "2026-03-10T04:44:31.586270224+00:00",
+		"completedAt": null
+	},
+	{
+		"id": "group-ca8fa060",
+		"name": "phase-6-tui-dashboard",
+		"memberIssueIds": [
+			"phase-6-tui"
+		],
+		"status": "active",
+		"createdAt": "2026-03-10T04:48:48.353Z",
+		"completedAt": null
+	}
 ]
