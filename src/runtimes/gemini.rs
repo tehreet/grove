@@ -67,6 +67,54 @@ impl AgentRuntime for GeminiRuntime {
     fn build_env(&self, model: &crate::types::ResolvedModel) -> HashMap<String, String> {
         model.env.clone().unwrap_or_default()
     }
+
+    fn build_print_command(&self, prompt: &str, model: Option<&str>) -> Vec<String> {
+        let mut cmd = vec!["gemini".to_string(), "-p".to_string()];
+        if let Some(model) = model {
+            cmd.push("--model".to_string());
+            cmd.push(model.to_string());
+        }
+        cmd.push(prompt.to_string());
+        cmd.push("--yolo".to_string());
+        cmd
+    }
+
+    fn parse_transcript(&self, path: &Path) -> Option<crate::types::TranscriptSummary> {
+        let content = fs::read_to_string(path).ok()?;
+        let mut summary = crate::types::TranscriptSummary::default();
+        let mut found = false;
+
+        for line in content.lines() {
+            let line = line.trim();
+            if line.is_empty() {
+                continue;
+            }
+
+            let Ok(val) = serde_json::from_str::<serde_json::Value>(line) else {
+                continue;
+            };
+
+            if let Some(meta) = val.get("usageMetadata") {
+                found = true;
+                summary.input_tokens += meta
+                    .get("promptTokenCount")
+                    .and_then(serde_json::Value::as_u64)
+                    .unwrap_or(0);
+                summary.output_tokens += meta
+                    .get("candidatesTokenCount")
+                    .and_then(serde_json::Value::as_u64)
+                    .unwrap_or(0);
+            }
+
+            if let Some(model) = val.get("modelVersion").and_then(serde_json::Value::as_str) {
+                if !model.is_empty() {
+                    summary.model = Some(model.to_string());
+                }
+            }
+        }
+
+        found.then_some(summary)
+    }
 }
 
 #[cfg(test)]
@@ -118,7 +166,55 @@ mod tests {
 
         let gemini_md = dir.path().join("GEMINI.md");
         assert!(gemini_md.exists());
-        assert_eq!(std::fs::read_to_string(gemini_md).unwrap(), "# Gemini overlay");
+        assert_eq!(
+            std::fs::read_to_string(gemini_md).unwrap(),
+            "# Gemini overlay"
+        );
         assert!(!dir.path().join(".claude").exists());
+    }
+
+    #[test]
+    fn test_build_print_command_no_model() {
+        let cmd = GeminiRuntime.build_print_command("hello world", None);
+        assert_eq!(cmd, vec!["gemini", "-p", "hello world", "--yolo"]);
+    }
+
+    #[test]
+    fn test_build_print_command_with_model() {
+        let cmd = GeminiRuntime.build_print_command("hello", Some("gemini-2.5-pro"));
+        assert_eq!(
+            cmd,
+            vec![
+                "gemini",
+                "-p",
+                "--model",
+                "gemini-2.5-pro",
+                "hello",
+                "--yolo"
+            ]
+        );
+    }
+
+    #[test]
+    fn test_parse_transcript_empty_file() {
+        let dir = tempfile::tempdir().unwrap();
+        let path = dir.path().join("gemini.jsonl");
+        std::fs::write(&path, "").unwrap();
+        assert!(GeminiRuntime.parse_transcript(&path).is_none());
+    }
+
+    #[test]
+    fn test_parse_transcript_with_usage() {
+        let dir = tempfile::tempdir().unwrap();
+        let path = dir.path().join("gemini.jsonl");
+        std::fs::write(
+            &path,
+            r#"{"usageMetadata":{"promptTokenCount":55,"candidatesTokenCount":21},"modelVersion":"gemini-2.5-pro"}"#,
+        )
+        .unwrap();
+        let summary = GeminiRuntime.parse_transcript(&path).unwrap();
+        assert_eq!(summary.input_tokens, 55);
+        assert_eq!(summary.output_tokens, 21);
+        assert_eq!(summary.model.as_deref(), Some("gemini-2.5-pro"));
     }
 }

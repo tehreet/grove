@@ -101,6 +101,57 @@ impl AgentRuntime for CodexRuntime {
     fn build_env(&self, model: &crate::types::ResolvedModel) -> HashMap<String, String> {
         model.env.clone().unwrap_or_default()
     }
+
+    fn build_print_command(&self, prompt: &str, model: Option<&str>) -> Vec<String> {
+        let mut cmd = vec!["codex".to_string(), "-q".to_string()];
+
+        if let Some(model) = model {
+            if !should_omit_model(model) {
+                cmd.push("--model".to_string());
+                cmd.push(model.to_string());
+            }
+        }
+
+        cmd.push(prompt.to_string());
+        cmd
+    }
+
+    fn parse_transcript(&self, path: &Path) -> Option<crate::types::TranscriptSummary> {
+        let content = fs::read_to_string(path).ok()?;
+        let mut summary = crate::types::TranscriptSummary::default();
+        let mut found = false;
+
+        for line in content.lines() {
+            let line = line.trim();
+            if line.is_empty() {
+                continue;
+            }
+
+            let Ok(val) = serde_json::from_str::<serde_json::Value>(line) else {
+                continue;
+            };
+
+            if let Some(usage) = val.get("usage") {
+                found = true;
+                summary.input_tokens += usage
+                    .get("input_tokens")
+                    .and_then(serde_json::Value::as_u64)
+                    .unwrap_or(0);
+                summary.output_tokens += usage
+                    .get("output_tokens")
+                    .and_then(serde_json::Value::as_u64)
+                    .unwrap_or(0);
+            }
+
+            if let Some(model) = val.get("model").and_then(serde_json::Value::as_str) {
+                if !model.is_empty() {
+                    summary.model = Some(model.to_string());
+                }
+            }
+        }
+
+        found.then_some(summary)
+    }
 }
 
 #[cfg(test)]
@@ -150,7 +201,10 @@ mod tests {
         let mut opts = make_opts();
         opts.model = "sonnet".to_string();
         let cmd = CodexRuntime.build_headless_command(&opts);
-        assert!(!cmd.contains(&"--model".to_string()), "Should omit --model for manifest alias");
+        assert!(
+            !cmd.contains(&"--model".to_string()),
+            "Should omit --model for manifest alias"
+        );
     }
 
     #[test]
@@ -158,7 +212,10 @@ mod tests {
         let mut opts = make_opts();
         opts.model = "claude-sonnet-4-6".to_string();
         let cmd = CodexRuntime.build_headless_command(&opts);
-        assert!(!cmd.contains(&"--model".to_string()), "Should omit --model for claude model");
+        assert!(
+            !cmd.contains(&"--model".to_string()),
+            "Should omit --model for claude model"
+        );
     }
 
     #[test]
@@ -199,5 +256,46 @@ mod tests {
         };
         let result = CodexRuntime.build_env(&model);
         assert_eq!(result.get("OPENAI_API_KEY").unwrap(), "sk-test");
+    }
+
+    #[test]
+    fn test_build_print_command_no_model() {
+        let cmd = CodexRuntime.build_print_command("hello world", None);
+        assert_eq!(cmd, vec!["codex", "-q", "hello world"]);
+    }
+
+    #[test]
+    fn test_build_print_command_with_model() {
+        let cmd = CodexRuntime.build_print_command("hello", Some("o4-mini"));
+        assert_eq!(cmd, vec!["codex", "-q", "--model", "o4-mini", "hello"]);
+    }
+
+    #[test]
+    fn test_build_print_command_omits_anthropic_alias() {
+        let cmd = CodexRuntime.build_print_command("hello", Some("sonnet"));
+        assert_eq!(cmd, vec!["codex", "-q", "hello"]);
+    }
+
+    #[test]
+    fn test_parse_transcript_empty_file() {
+        let dir = tempfile::tempdir().unwrap();
+        let path = dir.path().join("codex.jsonl");
+        std::fs::write(&path, "").unwrap();
+        assert!(CodexRuntime.parse_transcript(&path).is_none());
+    }
+
+    #[test]
+    fn test_parse_transcript_with_usage() {
+        let dir = tempfile::tempdir().unwrap();
+        let path = dir.path().join("codex.jsonl");
+        std::fs::write(
+            &path,
+            r#"{"type":"message","usage":{"input_tokens":42,"output_tokens":11},"model":"o4-mini"}"#,
+        )
+        .unwrap();
+        let summary = CodexRuntime.parse_transcript(&path).unwrap();
+        assert_eq!(summary.input_tokens, 42);
+        assert_eq!(summary.output_tokens, 11);
+        assert_eq!(summary.model.as_deref(), Some("o4-mini"));
     }
 }
