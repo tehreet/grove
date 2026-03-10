@@ -940,11 +940,13 @@ enum CoordinatorSubcommand {
     Status(CoordinatorStatusArgs),
     /// Send a message to the coordinator's mailbox
     Send(CoordinatorSendArgs),
+    /// Tail the coordinator log file
+    Logs(CoordinatorLogsArgs),
 }
 
 #[derive(Args)]
 struct CoordinatorStartArgs {
-    /// Start in background (do not attach to tmux session)
+    /// Start in background (no-op: coordinator always runs as a daemon)
     #[arg(long)]
     no_attach: bool,
     /// Coordination profile (delivery | co-creation)
@@ -1001,6 +1003,19 @@ struct CoordinatorSendArgs {
     /// Sender agent name
     #[arg(long, default_value = "operator")]
     from: String,
+    /// Output as JSON
+    #[arg(long)]
+    json: bool,
+}
+
+#[derive(Args)]
+struct CoordinatorLogsArgs {
+    /// Follow log output (poll for new content)
+    #[arg(long, short = 'f')]
+    follow: bool,
+    /// Number of lines to show from the end
+    #[arg(long, default_value = "50")]
+    lines: usize,
     /// Output as JSON
     #[arg(long)]
     json: bool,
@@ -1186,6 +1201,12 @@ fn run_command(
                 &a.subject,
                 &a.body,
                 &a.from,
+                a.json || json,
+                project,
+            ),
+            CoordinatorSubcommand::Logs(a) => commands::coordinator::execute_logs(
+                a.follow,
+                a.lines,
                 a.json || json,
                 project,
             ),

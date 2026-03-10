@@ -1,13 +1,18 @@
 //! `grove coordinator` — persistent coordinator event loop.
 //!
 //! Subcommands:
-//!   start   — register session, spawn tmux, run event loop
+//!   start   — register session, spawn daemon process, run event loop
 //!   stop    — SIGTERM the coordinator, update session
-//!   status  — show coordinator info
+//!   status  — show coordinator info (PID file + log tail + session DB)
 //!   send    — insert a message into the coordinator's mailbox
+//!   logs    — tail the coordinator log file
 
+use std::fs;
+use std::io::{self, BufRead};
 use std::path::{Path, PathBuf};
-use std::process::Command;
+use std::process::{Command, Stdio};
+use std::thread;
+use std::time::{Duration, Instant};
 
 use serde::Serialize;
 
@@ -20,13 +25,65 @@ use crate::logging::brand_bold;
 use crate::types::{AgentSession, AgentState, InsertMailMessage, MailMessageType, MailPriority};
 
 const COORDINATOR_AGENT: &str = "coordinator";
+const PID_FILE: &str = ".overstory/coordinator.pid";
+const LOG_DIR: &str = ".overstory/logs";
+const LOG_FILE: &str = ".overstory/logs/coordinator.log";
+
+// ---------------------------------------------------------------------------
+// Helpers
+// ---------------------------------------------------------------------------
+
+fn pid_file_path(root: &Path) -> PathBuf {
+    root.join(PID_FILE)
+}
+
+fn log_file_path(root: &Path) -> PathBuf {
+    root.join(LOG_FILE)
+}
+
+/// Read PID from the coordinator.pid file. Returns None if file absent or unparseable.
+fn read_pid_file(root: &Path) -> Option<u32> {
+    fs::read_to_string(pid_file_path(root))
+        .ok()
+        .and_then(|s| s.trim().parse::<u32>().ok())
+}
+
+/// Check whether a process with the given PID is alive via `kill -0`.
+fn pid_is_alive(pid: u32) -> bool {
+    Command::new("kill")
+        .args(["-0", &pid.to_string()])
+        .stdout(Stdio::null())
+        .stderr(Stdio::null())
+        .status()
+        .map(|s| s.success())
+        .unwrap_or(false)
+}
+
+/// Return the last `n` lines of a file as a String.
+fn tail_file(path: &Path, n: usize) -> String {
+    let Ok(file) = fs::File::open(path) else {
+        return String::new();
+    };
+    let reader = io::BufReader::new(file);
+    let lines: Vec<String> = reader.lines().map_while(Result::ok).collect();
+    lines
+        .iter()
+        .rev()
+        .take(n)
+        .collect::<Vec<_>>()
+        .into_iter()
+        .rev()
+        .map(|s| s.as_str())
+        .collect::<Vec<_>>()
+        .join("\n")
+}
 
 // ---------------------------------------------------------------------------
 // start
 // ---------------------------------------------------------------------------
 
 pub fn execute_start(
-    no_attach: bool,
+    _no_attach: bool,
     _profile: Option<&str>,
     foreground: bool,
     json: bool,
@@ -41,7 +98,7 @@ pub fn execute_start(
     let merge_queue_db = format!("{root_str}/.overstory/merge-queue.db");
 
     // If --foreground: run the event loop directly in this process.
-    // This is how the tmux session runs the coordinator.
+    // This is called by the daemon child spawned below.
     if foreground {
         let store = SessionStore::new(&sessions_db).map_err(|e| e.to_string())?;
 
@@ -68,6 +125,7 @@ pub fn execute_start(
             merge_queue_db,
             exit_triggers,
             agent_name: COORDINATOR_AGENT.to_string(),
+            has_received_work: false,
         };
 
         run(ctx);
@@ -80,35 +138,29 @@ pub fn execute_start(
         return Ok(());
     }
 
-    // Not foreground: spawn tmux session + register session
-
-    // Check if coordinator is already running
-    if let Ok(store) = SessionStore::new(&sessions_db) {
-        if let Ok(Some(existing)) = store.get_by_name(COORDINATOR_AGENT) {
-            if existing.state == AgentState::Working || existing.state == AgentState::Booting {
-                let msg = format!(
-                    "Coordinator is already running (state: {:?}, tmux: {})",
-                    existing.state, existing.tmux_session
-                );
-                if json {
-                    println!("{}", json_error("coordinator start", &msg));
-                } else {
-                    eprintln!("{msg}");
-                }
-                return Err(msg);
+    // Daemon mode: check if coordinator is already running
+    if let Some(pid) = read_pid_file(&root) {
+        if pid_is_alive(pid) {
+            let msg = format!("Coordinator is already running (PID: {pid})");
+            if json {
+                println!("{}", json_error("coordinator start", &msg));
+            } else {
+                eprintln!("{msg}");
             }
+            return Err(msg);
         }
     }
 
-    // Determine session name
-    let config = load_config(&root, project_override).unwrap_or_default();
-    let project_name = config.project.name.replace(' ', "-").to_lowercase();
-    let project_name = if project_name.is_empty() {
-        "grove".to_string()
-    } else {
-        project_name
-    };
-    let tmux_session_name = format!("overstory-{project_name}-coordinator");
+    // Create log directory
+    let log_dir = root.join(LOG_DIR);
+    fs::create_dir_all(&log_dir).map_err(|e| format!("Failed to create log dir: {e}"))?;
+    let log_path = log_file_path(&root);
+    let log_file = fs::OpenOptions::new()
+        .create(true)
+        .append(true)
+        .open(&log_path)
+        .map_err(|e| format!("Failed to open log file: {e}"))?;
+    let log_file_err = log_file.try_clone().map_err(|e| e.to_string())?;
 
     // Register session (state = booting)
     let now = chrono::Utc::now().to_rfc3339();
@@ -119,7 +171,7 @@ pub fn execute_start(
         worktree_path: root_str.clone(),
         branch_name: String::new(),
         task_id: String::new(),
-        tmux_session: tmux_session_name.clone(),
+        tmux_session: String::new(),
         state: AgentState::Booting,
         pid: None,
         parent_agent: None,
@@ -137,62 +189,40 @@ pub fn execute_start(
         store.upsert(&session).map_err(|e| e.to_string())?;
     }
 
-    // Build the command to run inside tmux:
-    // grove coordinator start --foreground [--project <root>]
+    // Spawn daemon child
     let grove_bin = std::env::current_exe()
         .map(|p| p.to_string_lossy().to_string())
         .unwrap_or_else(|_| "grove".to_string());
 
-    let tmux_command = format!(
-        "{grove_bin} coordinator start --foreground --project {root_str}"
-    );
-
-    // Create tmux session
-    let tmux_result = Command::new("tmux")
+    let child = Command::new(&grove_bin)
         .args([
-            "new-session",
-            "-d",
-            "-s",
-            &tmux_session_name,
-            "-c",
+            "coordinator",
+            "start",
+            "--foreground",
+            "--project",
             &root_str,
-            &tmux_command,
         ])
-        .output()
-        .map_err(|e| format!("Failed to launch tmux: {e}"))?;
+        .stdout(log_file)
+        .stderr(log_file_err)
+        .stdin(Stdio::null())
+        .spawn()
+        .map_err(|e| format!("Failed to spawn coordinator daemon: {e}"))?;
 
-    if !tmux_result.status.success() {
-        let stderr = String::from_utf8_lossy(&tmux_result.stderr);
-        return Err(format!("Failed to create tmux session: {stderr}"));
-    }
+    let pid = child.id();
 
-    // Get the PID of the pane
-    let pid_output = Command::new("tmux")
-        .args([
-            "list-panes",
-            "-t",
-            &tmux_session_name,
-            "-F",
-            "#{pane_pid}",
-        ])
-        .output()
-        .ok()
-        .and_then(|o| {
-            String::from_utf8_lossy(&o.stdout)
-                .trim()
-                .parse::<i64>()
-                .ok()
-        });
+    // Write PID file
+    fs::write(pid_file_path(&root), pid.to_string())
+        .map_err(|e| format!("Failed to write PID file: {e}"))?;
 
     // Update session with PID
-    if let Some(pid) = pid_output {
-        if let Ok(store) = SessionStore::new(&sessions_db) {
-            // Re-upsert with pid
-            let mut s = session.clone();
-            s.pid = Some(pid);
-            let _ = store.upsert(&s);
-        }
+    if let Ok(store) = SessionStore::new(&sessions_db) {
+        let mut s = session.clone();
+        s.pid = Some(pid as i64);
+        let _ = store.upsert(&s);
     }
+
+    // Detach child — we don't wait on it
+    drop(child);
 
     if json {
         #[derive(Serialize)]
@@ -200,8 +230,8 @@ pub fn execute_start(
         struct Output {
             started: bool,
             agent_name: String,
-            tmux_session: String,
-            pid: Option<i64>,
+            pid: u32,
+            log_file: String,
         }
         println!(
             "{}",
@@ -210,23 +240,14 @@ pub fn execute_start(
                 &Output {
                     started: true,
                     agent_name: COORDINATOR_AGENT.to_string(),
-                    tmux_session: tmux_session_name.clone(),
-                    pid: pid_output,
+                    pid,
+                    log_file: log_path.to_string_lossy().to_string(),
                 }
             )
         );
     } else {
-        println!("{} coordinator started", brand_bold("grove"));
-        println!("  Tmux session: {tmux_session_name}");
-        if let Some(pid) = pid_output {
-            println!("  PID: {pid}");
-        }
-        if !no_attach {
-            println!("  Attaching to session (Ctrl-b d to detach)...");
-            let _ = Command::new("tmux")
-                .args(["attach-session", "-t", &tmux_session_name])
-                .status();
-        }
+        println!("{} coordinator started, PID: {pid}", brand_bold("grove"));
+        println!("  Log: {}", log_path.display());
     }
 
     Ok(())
@@ -242,54 +263,54 @@ pub fn execute_stop(json: bool, project_override: Option<&Path>) -> Result<(), S
     let root_str = root.to_string_lossy().to_string();
     let sessions_db = format!("{root_str}/.overstory/sessions.db");
 
-    if !PathBuf::from(&sessions_db).exists() {
-        let msg = "Coordinator not found: sessions.db does not exist";
+    // Find PID to kill
+    let pid = read_pid_file(&root).or_else(|| {
+        // Fall back to session record pid
+        SessionStore::new(&sessions_db)
+            .ok()
+            .and_then(|s| s.get_by_name(COORDINATOR_AGENT).ok())
+            .flatten()
+            .and_then(|s| s.pid)
+            .map(|p| p as u32)
+    });
+
+    let Some(pid) = pid else {
+        let msg = "Coordinator not running (no PID file or active session found)";
         if json {
             println!("{}", json_error("coordinator stop", msg));
         } else {
             eprintln!("{msg}");
         }
         return Err(msg.to_string());
-    }
-
-    let store = SessionStore::new(&sessions_db).map_err(|e| e.to_string())?;
-    let session = store
-        .get_by_name(COORDINATOR_AGENT)
-        .map_err(|e| e.to_string())?
-        .ok_or("Coordinator session not found")?;
+    };
 
     let mut killed = false;
 
-    // SIGTERM to the tmux session (kills the process inside)
-    if !session.tmux_session.is_empty() {
-        let alive = Command::new("tmux")
-            .args(["has-session", "-t", &session.tmux_session])
-            .output()
-            .map(|o| o.status.success())
-            .unwrap_or(false);
+    if pid_is_alive(pid) {
+        // Send SIGTERM
+        let _ = Command::new("kill")
+            .args(["-TERM", &pid.to_string()])
+            .output();
+        killed = true;
 
-        if alive {
-            // Send SIGTERM to the pane process
-            if let Some(pid) = session.pid {
-                let _ = Command::new("kill")
-                    .args(["-TERM", &pid.to_string()])
-                    .output();
-                killed = true;
+        // Wait up to 5 seconds for the process to exit
+        let deadline = Instant::now() + Duration::from_secs(5);
+        while Instant::now() < deadline {
+            if !pid_is_alive(pid) {
+                break;
             }
-            // Wait briefly then kill the tmux session
-            std::thread::sleep(std::time::Duration::from_millis(500));
-            let _ = Command::new("tmux")
-                .args(["kill-session", "-t", &session.tmux_session])
-                .output();
+            thread::sleep(Duration::from_millis(200));
         }
     }
 
-    store
-        .update_state(COORDINATOR_AGENT, AgentState::Completed)
-        .map_err(|e| e.to_string())?;
-    store
-        .update_last_activity(COORDINATOR_AGENT)
-        .map_err(|e| e.to_string())?;
+    // Remove PID file
+    let _ = fs::remove_file(pid_file_path(&root));
+
+    // Update session state in DB (best-effort)
+    if let Ok(store) = SessionStore::new(&sessions_db) {
+        let _ = store.update_state(COORDINATOR_AGENT, AgentState::Completed);
+        let _ = store.update_last_activity(COORDINATOR_AGENT);
+    }
 
     if json {
         #[derive(Serialize)]
@@ -313,7 +334,7 @@ pub fn execute_stop(json: bool, project_override: Option<&Path>) -> Result<(), S
     } else {
         println!("{} coordinator stopped", brand_bold("grove"));
         if killed {
-            println!("  Process terminated (SIGTERM)");
+            println!("  Process {pid} terminated (SIGTERM)");
         }
     }
 
@@ -335,105 +356,178 @@ pub fn execute_status(json: bool, project_override: Option<&Path>) -> Result<(),
     struct Output {
         running: bool,
         state: Option<String>,
-        tmux_session: Option<String>,
-        pid: Option<i64>,
+        pid: Option<u32>,
+        pid_file: Option<String>,
+        log_file: Option<String>,
+        log_tail: Option<String>,
         started_at: Option<String>,
         last_activity: Option<String>,
         active_agents: usize,
     }
 
-    if !PathBuf::from(&sessions_db).exists() {
-        if json {
-            println!(
-                "{}",
-                json_output(
-                    "coordinator status",
-                    &Output {
-                        running: false,
-                        state: None,
-                        tmux_session: None,
-                        pid: None,
-                        started_at: None,
-                        last_activity: None,
-                        active_agents: 0,
-                    }
-                )
-            );
-        } else {
-            println!("{} coordinator: not running", brand_bold("grove"));
-        }
-        return Ok(());
-    }
+    // Check PID file
+    let pid = read_pid_file(&root);
+    let alive = pid.map(pid_is_alive).unwrap_or(false);
+    let pid_file_str = if pid_file_path(&root).exists() {
+        Some(pid_file_path(&root).to_string_lossy().to_string())
+    } else {
+        None
+    };
+    let log_path = log_file_path(&root);
+    let log_file_str = if log_path.exists() {
+        Some(log_path.to_string_lossy().to_string())
+    } else {
+        None
+    };
+    let log_tail = log_file_str
+        .as_ref()
+        .map(|_| tail_file(&log_path, 5))
+        .filter(|s| !s.is_empty());
 
-    let store = SessionStore::new(&sessions_db).map_err(|e| e.to_string())?;
-    let session = store.get_by_name(COORDINATOR_AGENT).map_err(|e| e.to_string())?;
-    let active_agents = store
-        .get_active()
-        .map(|v| {
-            v.iter()
-                .filter(|s| s.agent_name != COORDINATOR_AGENT)
-                .count()
-        })
-        .unwrap_or(0);
+    // Query sessions.db
+    let session = if PathBuf::from(&sessions_db).exists() {
+        SessionStore::new(&sessions_db)
+            .ok()
+            .and_then(|s| s.get_by_name(COORDINATOR_AGENT).ok())
+            .flatten()
+    } else {
+        None
+    };
 
-    match session {
-        None => {
-            if json {
-                println!(
-                    "{}",
-                    json_output(
-                        "coordinator status",
-                        &Output {
-                            running: false,
-                            state: None,
-                            tmux_session: None,
-                            pid: None,
-                            started_at: None,
-                            last_activity: None,
-                            active_agents,
-                        }
-                    )
-                );
-            } else {
-                println!("{} coordinator: not started", brand_bold("grove"));
-            }
-        }
-        Some(s) => {
-            let running = s.state == AgentState::Working || s.state == AgentState::Booting;
-            if json {
-                println!(
-                    "{}",
-                    json_output(
-                        "coordinator status",
-                        &Output {
-                            running,
-                            state: Some(format!("{:?}", s.state).to_lowercase()),
-                            tmux_session: Some(s.tmux_session.clone()),
-                            pid: s.pid,
-                            started_at: Some(s.started_at.clone()),
-                            last_activity: Some(s.last_activity.clone()),
-                            active_agents,
-                        }
-                    )
-                );
-            } else {
-                println!("{} coordinator status", brand_bold("grove"));
-                println!(
-                    "  State:       {}",
-                    format!("{:?}", s.state).to_lowercase()
-                );
-                println!("  Tmux:        {}", s.tmux_session);
-                if let Some(pid) = s.pid {
-                    println!("  PID:         {pid}");
+    let active_agents = if PathBuf::from(&sessions_db).exists() {
+        SessionStore::new(&sessions_db)
+            .ok()
+            .and_then(|s| s.get_active().ok())
+            .map(|v| {
+                v.iter()
+                    .filter(|s| s.agent_name != COORDINATOR_AGENT)
+                    .count()
+            })
+            .unwrap_or(0)
+    } else {
+        0
+    };
+
+    let running = alive
+        || session
+            .as_ref()
+            .map(|s| s.state == AgentState::Working || s.state == AgentState::Booting)
+            .unwrap_or(false);
+
+    let state_str = if alive {
+        Some("working".to_string())
+    } else {
+        session
+            .as_ref()
+            .map(|s| format!("{:?}", s.state).to_lowercase())
+    };
+
+    if json {
+        println!(
+            "{}",
+            json_output(
+                "coordinator status",
+                &Output {
+                    running,
+                    state: state_str,
+                    pid,
+                    pid_file: pid_file_str,
+                    log_file: log_file_str,
+                    log_tail,
+                    started_at: session.as_ref().map(|s| s.started_at.clone()),
+                    last_activity: session.as_ref().map(|s| s.last_activity.clone()),
+                    active_agents,
                 }
-                println!("  Started:     {}", s.started_at);
-                println!("  Last active: {}", s.last_activity);
-                println!("  Active agents (excl. coordinator): {active_agents}");
+            )
+        );
+    } else {
+        println!("{} coordinator status", brand_bold("grove"));
+        println!("  Running:     {running}");
+        if let Some(state) = &state_str {
+            println!("  State:       {state}");
+        }
+        if let Some(p) = pid {
+            println!("  PID:         {p} ({})", if alive { "alive" } else { "dead" });
+        }
+        if let Some(ref s) = session {
+            println!("  Started:     {}", s.started_at);
+            println!("  Last active: {}", s.last_activity);
+        }
+        println!("  Active agents (excl. coordinator): {active_agents}");
+        if let Some(ref tail) = log_tail {
+            println!("  Recent log:");
+            for line in tail.lines() {
+                println!("    {line}");
             }
         }
     }
 
     Ok(())
+}
+
+// ---------------------------------------------------------------------------
+// logs
+// ---------------------------------------------------------------------------
+
+pub fn execute_logs(
+    follow: bool,
+    lines: usize,
+    _json: bool,
+    project_override: Option<&Path>,
+) -> Result<(), String> {
+    let cwd = std::env::current_dir().map_err(|e| e.to_string())?;
+    let root = resolve_project_root(&cwd, project_override).map_err(|e| e.to_string())?;
+    let log_path = log_file_path(&root);
+
+    if !log_path.exists() {
+        if follow {
+            eprintln!("Waiting for coordinator log: {}", log_path.display());
+        } else {
+            eprintln!("No coordinator log found: {}", log_path.display());
+            return Ok(());
+        }
+    }
+
+    if !follow {
+        let tail = tail_file(&log_path, lines);
+        if tail.is_empty() {
+            eprintln!("(log is empty)");
+        } else {
+            println!("{tail}");
+        }
+        return Ok(());
+    }
+
+    // --follow: poll for new content
+    let mut pos: u64 = {
+        // Print existing content up to `lines` tail
+        let tail = tail_file(&log_path, lines);
+        if !tail.is_empty() {
+            println!("{tail}");
+        }
+        log_path
+            .metadata()
+            .map(|m| m.len())
+            .unwrap_or(0)
+    };
+
+    loop {
+        thread::sleep(Duration::from_millis(500));
+        if let Ok(meta) = log_path.metadata() {
+            let len = meta.len();
+            if len > pos {
+                if let Ok(mut file) = fs::File::open(&log_path) {
+                    use std::io::{Read, Seek, SeekFrom};
+                    let _ = file.seek(SeekFrom::Start(pos));
+                    let mut buf = String::new();
+                    if file.read_to_string(&mut buf).is_ok() {
+                        print!("{buf}");
+                    }
+                    pos = len;
+                }
+            }
+        }
+    }
 }
 
 // ---------------------------------------------------------------------------
@@ -560,5 +654,41 @@ mod tests {
             Some(tmpdir.path()),
         );
         assert!(result.is_ok());
+    }
+
+    #[test]
+    fn test_pid_is_alive_self() {
+        // Our own PID should always be alive
+        let pid = std::process::id();
+        assert!(pid_is_alive(pid));
+    }
+
+    #[test]
+    fn test_pid_is_alive_bogus() {
+        // PID 999999999 should not be alive
+        assert!(!pid_is_alive(999_999_999));
+    }
+
+    #[test]
+    fn test_tail_file_nonexistent() {
+        let result = tail_file(Path::new("/tmp/nonexistent-grove-test-log.log"), 5);
+        assert!(result.is_empty());
+    }
+
+    #[test]
+    fn test_logs_no_file() {
+        let result = execute_logs(
+            false,
+            10,
+            false,
+            Some(Path::new("/tmp/grove-coord-test-nonexistent")),
+        );
+        assert!(result.is_ok());
+    }
+
+    #[test]
+    fn test_read_pid_file_nonexistent() {
+        let result = read_pid_file(Path::new("/tmp/grove-coord-test-nonexistent"));
+        assert!(result.is_none());
     }
 }

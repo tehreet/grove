@@ -1,6 +1,6 @@
 //! Coordinator event loop — the core of the native Rust coordinator.
 //!
-//! This runs inside a tmux session and polls every second:
+//! Polls every second:
 //!   1. Check mail for "coordinator"
 //!   2. Check for completed agents
 //!   3. Check the merge queue
@@ -29,17 +29,20 @@ pub struct LoopContext {
     pub merge_queue_db: String,
     pub exit_triggers: CoordinatorExitTriggers,
     pub agent_name: String,
+    /// Set to true once a dispatch message is received; gates allAgentsDone exit trigger.
+    pub has_received_work: bool,
 }
 
 // ---------------------------------------------------------------------------
 // Message handler
 // ---------------------------------------------------------------------------
 
+/// Returns true if this message counts as "received work" (i.e. a dispatch).
 fn handle_message(
     msg: &crate::types::MailMessage,
     mail_store: &MailStore,
     ctx: &LoopContext,
-) {
+) -> bool {
     // Mark it read first
     let _ = mail_store.mark_read(&msg.id);
 
@@ -80,15 +83,19 @@ fn handle_message(
                     }
                 }
             });
+            true
         }
         MailMessageType::WorkerDone => {
             eprintln!("[coordinator] agent completed: {}", msg.from);
+            false
         }
         MailMessageType::Error => {
             eprintln!("[coordinator] ERROR from {}: {}", msg.from, msg.body);
+            false
         }
         _ => {
             eprintln!("[coordinator] message type '{}' — no handler", msg.message_type);
+            false
         }
     }
 }
@@ -140,7 +147,7 @@ fn handle_merge_entry(entry: &crate::types::MergeEntry, ctx: &LoopContext) {
 // Public: run the event loop (blocking)
 // ---------------------------------------------------------------------------
 
-pub fn run(ctx: LoopContext) {
+pub fn run(mut ctx: LoopContext) {
     eprintln!("[coordinator] event loop starting");
 
     // Open DB connections (reconnect each tick for reliability)
@@ -151,7 +158,9 @@ pub fn run(ctx: LoopContext) {
         if let Ok(mail_store) = MailStore::new(&ctx.mail_db) {
             if let Ok(messages) = mail_store.get_unread(&ctx.agent_name) {
                 for msg in &messages {
-                    handle_message(msg, &mail_store, &ctx);
+                    if handle_message(msg, &mail_store, &ctx) {
+                        ctx.has_received_work = true;
+                    }
                 }
             }
         }
@@ -197,7 +206,9 @@ pub fn run(ctx: LoopContext) {
 }
 
 fn should_exit(ctx: &LoopContext) -> bool {
-    if ctx.exit_triggers.all_agents_done {
+    // Only evaluate allAgentsDone after coordinator has received actual work.
+    // Without this guard the coordinator exits immediately on start (BUG-1).
+    if ctx.exit_triggers.all_agents_done && ctx.has_received_work {
         if let Ok(store) = SessionStore::new(&ctx.sessions_db) {
             if let Ok(active) = store.get_active() {
                 // Active = any agent other than the coordinator itself
@@ -241,6 +252,7 @@ mod tests {
                 on_shutdown_signal: false,
             },
             agent_name: "coordinator".to_string(),
+            has_received_work: false,
         }
     }
 
@@ -252,6 +264,23 @@ mod tests {
         // (open will succeed with bundled sqlite, but table is empty)
         // Just verify it doesn't panic
         let _ = should_exit(&ctx);
+    }
+
+    #[test]
+    fn test_should_not_exit_without_work() {
+        // BUG-1 regression: all_agents_done=true but no work received → must not exit
+        let ctx = test_ctx(":memory:");
+        assert!(!ctx.has_received_work);
+        assert!(!should_exit(&ctx), "should not exit before any work is received");
+    }
+
+    #[test]
+    fn test_should_exit_after_work_received_no_agents() {
+        // Once work is received and no other agents are active, should exit
+        let mut ctx = test_ctx(":memory:");
+        ctx.has_received_work = true;
+        // :memory: DB has no sessions → others_active is empty → should exit
+        assert!(should_exit(&ctx), "should exit when work received and no active agents");
     }
 
     #[test]
@@ -273,5 +302,6 @@ mod tests {
         let ctx = test_ctx(":memory:");
         assert_eq!(ctx.agent_name, "coordinator");
         assert!(ctx.exit_triggers.all_agents_done);
+        assert!(!ctx.has_received_work);
     }
 }
